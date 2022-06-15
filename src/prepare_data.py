@@ -11,26 +11,35 @@ import json
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.getcwd(), 'config.env'))
 
-path_data = os.getenv('PATH_DATA')
+PATH_DATA = os.getenv('PATH_DATA')
 
 with open(os.path.join(os.getcwd(), 'cparams.json'), 'r') as filestream:
     CPARAMS = json.load(filestream)
 filestream.close()
 
-batch_size = CPARAMS['BATCH_SIZE']
+BATCH_SIZE = CPARAMS['BATCH_SIZE']
+DATASET_ID = CPARAMS['DATASET_ID'] 
 
-
-mnist_train = torchvision.datasets.MNIST(path_data, train = True, download = True,
-                     transform=torchvision.transforms.Compose([
-                     torchvision.transforms.ToTensor()
-                     ]) )
-mnist_test  = torchvision.datasets.MNIST(path_data, train = False, download = True,
-                     transform=torchvision.transforms.Compose([
-                     torchvision.transforms.ToTensor()
-                     ]) )
-
-train_loader = DataLoader(mnist_train, batch_size = batch_size, shuffle = True)
-test_loader  = DataLoader(mnist_test, batch_size = batch_size, shuffle = False)
+if DATASET_ID == 'MNIST':
+    
+    mnist_train = torchvision.datasets.MNIST(PATH_DATA, train = True, download = True,
+                         transform=torchvision.transforms.Compose([
+                         torchvision.transforms.ToTensor()
+                         ]) )
+    mnist_test  = torchvision.datasets.MNIST(PATH_DATA, train = False, download = True,
+                         transform=torchvision.transforms.Compose([
+                         torchvision.transforms.ToTensor()
+                         ]) )
+    
+    train_loader = DataLoader(mnist_train, batch_size = BATCH_SIZE, shuffle = True)
+    test_loader  = DataLoader(mnist_test, batch_size = BATCH_SIZE, shuffle = False)
+    
+elif DATASET_ID == 'SZ':
+    
+    pass
+else:
+    raise ValueError('Dataset not valid')
+#end
 
 train_data   = list(); test_data   = list()
 train_labels = list(); test_labels = list()
@@ -53,8 +62,9 @@ with tqdm(test_loader) as tdata:
     #end
 #end
 
-if not os.path.exists(path_data):
-    os.mkdir(path_data)
+path_dump_data = os.path.join(PATH_DATA, DATASET_ID)
+if not os.path.exists(path_dump_data):
+    os.mkdir(path_dump_data)
 #end
 
 train_dataset = {'data' : train_data, 'labels' : train_labels}
@@ -62,11 +72,11 @@ test_dataset  = {'data' : test_data, 'labels' : test_labels}
 
 pickle.dump( 
     train_dataset,
-    open(os.path.join(path_data, 'train_dataset.pkl'), 'wb')
+    open(os.path.join(path_dump_data, 'train_dataset.pkl'), 'wb')
 )
 
 pickle.dump( 
     test_dataset,
-    open(os.path.join(path_data, 'test_dataset.pkl'), 'wb')
+    open(os.path.join(path_dump_data, 'test_dataset.pkl'), 'wb')
 )
 
