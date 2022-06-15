@@ -20,7 +20,11 @@ with open(os.path.join(os.getcwd(), 'cparams.json'), 'r') as filestream:
 filestream.close()
 
 BATCH_SIZE = CPARAMS['BATCH_SIZE']
-DATASET_ID = CPARAMS['DATASET_ID'] 
+DATASET_ID = CPARAMS['DATASET_ID']
+
+train_data   = list(); test_data   = list()
+train_labels = list(); test_labels = list()
+
 
 if DATASET_ID == 'MNIST':
     
@@ -36,34 +40,48 @@ if DATASET_ID == 'MNIST':
     train_loader = DataLoader(mnist_train, batch_size = BATCH_SIZE, shuffle = True)
     test_loader  = DataLoader(mnist_test, batch_size = BATCH_SIZE, shuffle = False)
     
+    with tqdm(train_loader) as tdata:
+        
+        for idx, (batch, labels) in enumerate(tdata):
+            tdata.set_description(f'Train Batch {idx}\t')
+            bsize = batch.shape[0]
+            train_data.append(batch.reshape(bsize, -1))
+            train_labels.append(labels.reshape(bsize, -1).type(torch.float32))
+        #end
+    #end
+
+    with tqdm(test_loader) as tdata:
+        
+        for idx, (batch, labels) in enumerate(tdata):
+            tdata.set_description(f'Test Batch {idx}\t')
+            bsize = batch.shape[0]
+            test_data.append(batch.reshape(bsize, -1))
+            test_labels.append(labels.reshape(bsize, -1).type(torch.float32))
+        #end
+    #end
+    
 elif DATASET_ID == 'SZ':
     
     dataset = io.loadmat(os.path.join(PATH_DATA, DATASET_ID, 'StoianovZorzi2012_data.mat'))
-    print()
-    pass
+    
+    data = dataset['data_images']
+    labels = dataset['data_labels'][:,0]
+    
+    train_data = list()
+    train_labels = list()
+    
+    num_batches = data.shape[0] // BATCH_SIZE
+    with tqdm(range(num_batches)) as tdata:
+        
+        for n in range(num_batches):
+            tdata.set_description(f'Train Batch {n}\t')
+            train_data.append( torch.Tensor(data[n : n + BATCH_SIZE, :]).type(torch.float32) )
+            train_labels.append( torch.Tensor(labels[n : n + BATCH_SIZE]).type(torch.float32) )
+        #end
+    #end
+    
 else:
     raise ValueError('Dataset not valid')
-#end
-
-train_data   = list(); test_data   = list()
-train_labels = list(); test_labels = list()
-
-with tqdm(train_loader) as tdata:
-    for idx, (batch, labels) in enumerate(tdata):
-        tdata.set_description(f'Train Batch {idx}\t')
-        bsize = batch.shape[0]
-        train_data.append(batch.reshape(bsize, -1))
-        train_labels.append(labels.reshape(bsize, -1).type(torch.float32))
-    #end
-#end
-
-with tqdm(test_loader) as tdata:
-    for idx, (batch, labels) in enumerate(tdata):
-        tdata.set_description(f'Test Batch {idx}\t')
-        bsize = batch.shape[0]
-        test_data.append(batch.reshape(bsize, -1))
-        test_labels.append(labels.reshape(bsize, -1).type(torch.float32))
-    #end
 #end
 
 path_dump_data = os.path.join(PATH_DATA, DATASET_ID)
