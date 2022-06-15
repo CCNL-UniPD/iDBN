@@ -2,6 +2,8 @@
 import os
 import pickle
 from tqdm import tqdm
+
+from scipy import io
 import torch
 import torchvision
 from torch.utils.data import DataLoader
@@ -36,6 +38,8 @@ if DATASET_ID == 'MNIST':
     
 elif DATASET_ID == 'SZ':
     
+    dataset = io.loadmat(os.path.join(PATH_DATA, DATASET_ID, 'StoianovZorzi2012_data.mat'))
+    print()
     pass
 else:
     raise ValueError('Dataset not valid')
