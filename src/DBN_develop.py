@@ -16,14 +16,27 @@ load_dotenv(os.path.join(os.getcwd(), 'config.env'))
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-
+# -----------------------------------------------------
+# LOAD GLOBAL PATH VARIABLES
 PATH_DATA  = os.getenv('PATH_DATA')
 PATH_MODEL = os.getenv('PATH_MODEL')
+# -----------------------------------------------------
+
 
 with open(os.path.join(os.getcwd(), 'cparams.json'), 'r') as filestream:
     CPARAMS = json.load(filestream)
 filestream.close()
 
+DATASET_ID = CPARAMS['DATASET_ID']
+
+# -----------------------------------------------------
+# REDEFINE DATASET-SPECIFIC PATH
+PATH_DATA = os.path.join(PATH_DATA, DATASET_ID)
+# -----------------------------------------------------
+
+
+# -----------------------------------------------------
+# GLOBAL VARIABLES
 ALG_NAME = CPARAMS['ALG_NAME']
 MODEL_NAME = f'{ALG_NAME}DBN'
 PATH_MODEL = os.path.join(PATH_MODEL, MODEL_NAME)
