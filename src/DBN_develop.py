@@ -14,7 +14,7 @@ from models import DBN
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.getcwd(), 'config.env'))
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # -----------------------------------------------------
 # LOAD GLOBAL PATH VARIABLES
@@ -32,14 +32,14 @@ DATASET_ID = CPARAMS['DATASET_ID']
 # -----------------------------------------------------
 # REDEFINE DATASET-SPECIFIC PATH
 PATH_DATA = os.path.join(PATH_DATA, DATASET_ID)
+PATH_MAIN = os.getcwd()
 # -----------------------------------------------------
-
 
 # -----------------------------------------------------
 # GLOBAL VARIABLES
 ALG_NAME = CPARAMS['ALG_NAME']
 MODEL_NAME = f'{ALG_NAME}DBN'
-PATH_MODEL = os.path.join(PATH_MODEL, MODEL_NAME)
+PATH_MODEL = os.path.join(PATH_MODEL, MODEL_NAME, DATASET_ID)
 
 if not os.path.exists(PATH_MODEL):
     os.makedirs(PATH_MODEL)
@@ -47,50 +47,79 @@ if not os.path.exists(PATH_MODEL):
 
 READOUT        = CPARAMS['READOUT']
 RUNS           = CPARAMS['RUNS']
-EPOCHS         = CPARAMS['EPOCHS']
 LAYERS         = CPARAMS['LAYERS']
-INIT_MOMENTUM  = CPARAMS['INIT_MOMENTUM']
-FINAL_MOMENTUM = CPARAMS['FINAL_MOMENTUM']
-LEARNING_RATE  = CPARAMS['LEARNING_RATE']
-WEIGHT_PENALTY = CPARAMS['WEIGHT_PENALTY']
+NUM_DISCR      = CPARAMS['NUM_DISCR']
+
+if DATASET_ID == 'MNIST' and NUM_DISCR:
+    raise ValueError('No numerosity discrimination with MNIST')
+#end
+
+with open(os.path.join(os.getcwd(), f'lparams-{DATASET_ID.lower()}.json'), 'r') as filestream:
+    LPARAMS = json.load(filestream)
+filestream.close()
+
+EPOCHS         = LPARAMS['EPOCHS']
+INIT_MOMENTUM  = LPARAMS['INIT_MOMENTUM']
+FINAL_MOMENTUM = LPARAMS['FINAL_MOMENTUM']
+LEARNING_RATE  = LPARAMS['LEARNING_RATE']
+WEIGHT_PENALTY = LPARAMS['WEIGHT_PENALTY']
+
+if NUM_DISCR:
+    NUM_LCLASSFRS  = LPARAMS['NUM_LCLASSIFIERS']
+    EPOCHS_NDISCR  = LPARAMS['EPOCHS_NDISCR']
+#end
 
 train_dataset = pickle.load(open(os.path.join(PATH_DATA, 'train_dataset.pkl'), 'rb'))
 test_dataset  = pickle.load(open(os.path.join(PATH_DATA, 'test_dataset.pkl'),  'rb'))
 
 loss_metrics = np.zeros((RUNS, EPOCHS, LAYERS))
 acc_metrics  = np.zeros((RUNS, EPOCHS, LAYERS))
+Weber_fracs  = list()
+psycurves    = list()
 
 for run in range(RUNS):
     
-    model = [
-        {'W' : torch.normal(0, 0.01, (784, 500)),  'a' : torch.zeros((1, 784)),  'b' : torch.zeros(1, 500)},
-        {'W' : torch.normal(0, 0.01, (500, 500)),  'a' : torch.zeros((1, 500)),  'b' : torch.zeros(1, 500)},
-        {'W' : torch.normal(0, 0.01, (500, 2000)), 'a' : torch.zeros((1, 500)),  'b' : torch.zeros((1, 2000))}
-    ]
+    if DATASET_ID == 'MNIST':
+        model = [
+            {'W' : torch.normal(0, 0.01, (784, 500)),  'a' : torch.zeros((1, 784)),  'b' : torch.zeros((1, 500))},
+            {'W' : torch.normal(0, 0.01, (500, 500)),  'a' : torch.zeros((1, 500)),  'b' : torch.zeros((1, 500))},
+            {'W' : torch.normal(0, 0.01, (500, 2000)), 'a' : torch.zeros((1, 500)),  'b' : torch.zeros((1, 2000))}
+        ]
+        
+    elif DATASET_ID == 'SZ':
+        model = [
+            {'W' : torch.normal(0, 0.01, (900, 80)), 'a' : torch.zeros((1, 900)), 'b' : torch.zeros((1, 80))},
+            {'W' : torch.normal(0, 0.01, (80, 400)), 'a' : torch.zeros((1, 80)),  'b' : torch.zeros((1, 400))}
+        ]
+    #end
     
     for layer in model:
         for key in layer.keys():
-            layer[key].to(device)
+            layer[key].to(DEVICE)
         #end
     #end
     
-    dbn = DBN(model, ALG_NAME, PATH_MODEL, EPOCHS).to(device)
+    dbn = DBN(model, ALG_NAME, PATH_MODEL, EPOCHS).to(DEVICE)
     
     if ALG_NAME == 'g':
         dbn.train_greedy(train_dataset, test_dataset,
-                          [INIT_MOMENTUM, FINAL_MOMENTUM],
-                          LEARNING_RATE, WEIGHT_PENALTY,
-                          readout = READOUT
+                         LPARAMS, readout = READOUT
         )
     elif ALG_NAME == 'i':
         dbn.train_iterative(train_dataset, test_dataset,
-                          [INIT_MOMENTUM, FINAL_MOMENTUM],
-                          LEARNING_RATE, WEIGHT_PENALTY,
-                          readout = READOUT
+                            LPARAMS, readout = READOUT,
+                            num_discr = NUM_DISCR
         )
     #end
+    
     loss_metrics[run,:,:] = dbn.loss_profile
     acc_metrics[run,:,:] = dbn.acc_profile
+    
+    if NUM_DISCR:
+        Weber_fracs.append(dbn.Weber_fracs) # list of pd.DataFrame
+        psycurves.append(dbn.psycurves)     # list of dicts with ratios and percs
+    #end
+    
     dbn.save(name = f'run{run}')
 #end
 
@@ -101,3 +130,15 @@ f.close()
 with open(os.path.join(PATH_MODEL, 'acc_metrics.pkl'), 'wb') as f:
     pickle.dump(acc_metrics, f)
 f.close()
+
+if NUM_DISCR:
+    with open(os.path.join(PATH_MODEL, 'Weber_fracs.pkl'), 'wb') as f:
+        pickle.dump(Weber_fracs, f)
+    f.close()
+    
+    with open(os.path.join(PATH_MODEL, 'psycurves.pkl'), 'wb') as f:
+        pickle.dump(psycurves, f)
+    f.close()
+#end
+
+

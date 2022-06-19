@@ -1,14 +1,17 @@
 
 import torch
 import numpy as np
+import pandas as pd
 from sklearn.linear_model import RidgeClassifier
 from sklearn.metrics import accuracy_score
+from wftools import DeltaRule, get_Weber_frac
 
 import os
 from tqdm import tqdm
 import random
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class DBN(torch.nn.Module):
@@ -24,7 +27,11 @@ class DBN(torch.nn.Module):
         self.epochs = epochs
     #end
     
-    def train_greedy(self, train_dataset, test_dataset, momenta, lr, penalty, readout = False):
+    def train_greedy(self, train_dataset, test_dataset, learning_params, readout = False):
+        
+        momenta = [ learning_params['INIT_MOMENTUM'], learning_params['FINAL_MOMENTUM'] ]
+        lr = learning_params['LEARNING_RATE']
+        penalty = learning_params['WEIGHT_DECAY']        
         
         train_data = train_dataset['data']
         train_lbls = train_dataset['labels']
@@ -131,7 +138,21 @@ class DBN(torch.nn.Module):
         #end layers
     #end
     
-    def train_iterative(self, train_dataset, test_dataset, momenta, lr, penalty, readout = False):
+    def train_iterative(self, train_dataset, test_dataset, learning_params, 
+                        readout = False, num_discr = False):
+        
+        if num_discr:
+            self.num_discr = True
+            self.Weber_fracs = pd.DataFrame(columns = range(learning_params['NUM_LCLASSIFIERS']),
+                                            index   = learning_params['EPOCHS_NDISCR'])
+            self.psycurves = dict()
+        else:
+            self.num_discr = False
+        #end
+        
+        momenta = [ learning_params['INIT_MOMENTUM'], learning_params['FINAL_MOMENTUM'] ]
+        lr = learning_params['LEARNING_RATE']
+        penalty = learning_params['WEIGHT_PENALTY']
         
         train_data = train_dataset['data']
         train_lbls = train_dataset['labels']
@@ -152,35 +173,34 @@ class DBN(torch.nn.Module):
             activities = [None for n in range(train_data.__len__())]
             t_activities = [None for n in range(test_data.__len__())]
             
+            print(f'Epoch {epoch:03d}')
+            
             for layer_id, layer in enumerate(self.network):
-                print(f'Layer {layer_id}')
                 
                 if layer_id == 0:
                     data = [batch.clone() for batch in train_data]
-                    if readout: t_data = [batch.clone() for batch in test_data]
+                    t_data = [batch.clone() for batch in test_data]
                 else:
                     data = [batch.clone() for batch in activities]
-                    if readout: t_data = [batch.clone() for batch in t_activities]
+                    t_data = [batch.clone() for batch in t_activities]
                 #end
                 
                 W = layer['W'].clone(); dW = velocities[layer_id]['dW'].clone()
                 a = layer['a'].clone(); da = velocities[layer_id]['da'].clone()
                 b = layer['b'].clone(); db = velocities[layer_id]['db'].clone()
                 
-                if readout:
-                    for n in list(range(test_data.__len__())):
-                        t_activities[n], _ = self.sample(W, b, t_data[n])
-                    #end
+                for n in list(range(test_data.__len__())):
+                    t_activities[n], _ = self.sample(W, b, t_data[n])
                 #end
                 
                 indices = list(range(data.__len__()))
                 train_loss = 0.
                 
                 random.shuffle(indices)
-                with tqdm(indices, unit = 'Batch') as tepoch:
-                    for idx, n in enumerate(tepoch):
-                        
-                        tepoch.set_description(f'Epoch {epoch}')
+                with tqdm(indices, unit = 'Batch') as tlayer:
+                    for idx, n in enumerate(tlayer):
+                                                
+                        tlayer.set_description(f'Layer {layer_id}')
                         batch_size = data[n].shape[0]
                         
                         pos_v = data[n]
@@ -217,10 +237,10 @@ class DBN(torch.nn.Module):
                         mse = (pos_v - neg_pv).pow(2).sum(dim = 1).mean(dim = 0)
                         train_loss += mse
                         
-                        tepoch.set_postfix(MSE = train_loss.div(idx + 1).item())
+                        tlayer.set_postfix(MSE = train_loss.div(idx + 1).item())
                         
-                    #end batches
-                #end with batches
+                    #end FOR batches
+                #end WITH batches
                 
                 if readout:
                     if (epoch + 1) % 2 == 0:
@@ -245,8 +265,40 @@ class DBN(torch.nn.Module):
                 self.network[layer_id]['b'] = b.clone()
                 
                 self.loss_profile[epoch, layer_id] = train_loss.div(data.__len__())
-            #end layers
-        #end epochs
+            #end FOR layers
+            
+            if self.num_discr and epoch in learning_params['EPOCHS_NDISCR']:
+                
+                # length of the last hidden layer
+                Nfeat = self.network[-1]['b'].shape[1]
+                
+                for nclass in range(learning_params['NUM_LCLASSIFIERS']):
+                    
+                    print(f'LC {nclass}')
+                    num_discr_dtls = learning_params['NDISCR_RANGES']
+                    numbers_ref = list(num_discr_dtls.keys())
+                    psycurves_splitted = dict()
+                    
+                    for nref in numbers_ref:
+                        ''' Aggregate the outputs of linear classifier
+                            so to pass them to a function to compute the
+                            Weber fraction of the concatenated
+                            ratios and percs
+                        '''
+                        
+                        dr = DeltaRule(Nfeat, nref, learning_params)
+                        lc_losses, lc_accs = dr.train(activities, train_lbls)
+                        ratios, percs = dr.test(t_activities, test_lbls)
+                        psycurves_splitted.update( {nref : (ratios, percs)} )                        
+                    #end
+                    
+                    Weber_frac = get_Weber_frac(psycurves_splitted)
+                    self.Weber_fracs.at[epoch, nclass] = Weber_frac
+                    self.psycurves.update({epoch : psycurves_splitted})
+                #end
+            #end IF discr
+            
+        #end FOR epochs
     #end
     
     def test(self, train_dataset, test_dataset):
@@ -324,9 +376,9 @@ class DBN(torch.nn.Module):
         
         nfeat  = x_train[0].shape[-1]
         Xtrain = torch.Tensor( torch.cat([batch for batch in x_train], dim = 0) ).numpy().reshape(-1, nfeat)
-        Xtest  = torch.Tensor( torch.cat([batch for batch in x_test], dim = 0) ).numpy().reshape(-1, nfeat)
+        Xtest  = torch.Tensor( torch.cat([batch for batch in x_test],  dim = 0) ).numpy().reshape(-1, nfeat)
         Ytrain = torch.Tensor( torch.cat([batch for batch in y_train], dim = 0) ).numpy().flatten()
-        Ytest  = torch.Tensor( torch.cat([batch for batch in y_test], dim = 0) ).numpy().flatten()
+        Ytest  = torch.Tensor( torch.cat([batch for batch in y_test],  dim = 0) ).numpy().flatten()
         
         classifier = RidgeClassifier().fit(Xtrain, Ytrain)
         y_pred = classifier.predict(Xtest)
@@ -344,3 +396,4 @@ class DBN(torch.nn.Module):
         torch.save(self, open(os.path.join(self.path_model, f'{name_save}_model.mdl'), 'wb'))
     #end
 #end
+
