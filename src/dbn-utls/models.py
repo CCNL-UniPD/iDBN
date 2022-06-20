@@ -10,7 +10,6 @@ import os
 from tqdm import tqdm
 import random
 
-
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
@@ -31,7 +30,7 @@ class DBN(torch.nn.Module):
         
         momenta = [ learning_params['INIT_MOMENTUM'], learning_params['FINAL_MOMENTUM'] ]
         lr = learning_params['LEARNING_RATE']
-        penalty = learning_params['WEIGHT_DECAY']        
+        penalty = learning_params['WEIGHT_DECAY']
         
         train_data = train_dataset['data']
         train_lbls = train_dataset['labels']
@@ -295,6 +294,7 @@ class DBN(torch.nn.Module):
                     Weber_frac = get_Weber_frac(psycurves_splitted)
                     self.Weber_fracs.at[epoch, nclass] = Weber_frac
                     self.psycurves.update({epoch : psycurves_splitted})
+                    print(f'Weber fraction = {Weber_frac:.2f}')
                 #end
             #end IF discr
             

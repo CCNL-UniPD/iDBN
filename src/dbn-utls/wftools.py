@@ -37,8 +37,8 @@ class DeltaRule(torch.nn.Module):
             raise ValueError('In get_accuracy : SIZE MISMATCH')
         #end
         
-        y_true = self.binarize_labels(y_true)
-        y_pred = self.binarize_pred(y_pred)
+        # y_true = self.binarize_labels(y_true)
+        # y_pred = self.binarize_pred(y_pred)
         return torch.sum(y_true == y_pred).float().div(lsize)
     #end
     
@@ -97,32 +97,36 @@ class DeltaRule(torch.nn.Module):
                     weight_update = torch.matmul(x.t(), (y - out))
                     dW = momentum * dW + self.lr * (weight_update - self.wd * self.W)
                     self.W = self.W + dW
+                    self.W = self.W + weight_update * self.lr
                     
                     train_loss += (y - out).pow(2).sum(dim = 1).mean(dim = 0).item()
-                    train_acc += self.get_accuracy(out.clone(), y_train[n,:,:].clone())
+                    train_acc += self.get_accuracy(y.clone(), out.clone())
                 #end
                 
                 losses[epoch] = train_loss / self.num_batches
                 accs[epoch] = train_acc / self.num_batches
-                tepoch.set_postfix(MSE = losses[epoch])
+                tepoch.set_postfix(Acc = accs[epoch])
             #end
+            
+            print(f'MSE = {losses[epoch]:.4f}; Acc = {accs[epoch]*100:.2f}')
+        #end
         
         return losses, accs
     #end
     
-    def test(self, x_test, y_test):
+    def test(self, x, y):
         
-        nfeat = x_test[0].shape[-1]
+        nfeat = x[0].shape[-1]
         
-        x_test = torch.Tensor(torch.cat([batch for batch in x_test], dim = 0))
-        y_test = torch.Tensor(torch.cat([batch for batch in y_test], dim = 0))
-        x_test = x_test.reshape(-1, nfeat)
-        y_test = y_test.reshape(-1, 1)
+        x = torch.Tensor(torch.cat([batch for batch in x], dim = 0))
+        y = torch.Tensor(torch.cat([batch for batch in y], dim = 0))
+        x = x.reshape(-1, nfeat)
+        y = y.reshape(-1, 1)
         
-        idx_range = ((y_test >= self.discr_range[0]) & 
-                     (y_test <= self.discr_range[-1])).flatten()
-        x_test = x_test[idx_range]
-        y_test = y_test[idx_range]
+        idx_range = ((y >= self.discr_range[0]) & 
+                     (y <= self.discr_range[-1])).flatten()
+        x_test = x[idx_range]
+        y_test = y[idx_range]
         
         testset_len = x_test.shape[0]
         
@@ -137,7 +141,7 @@ class DeltaRule(torch.nn.Module):
             mask = ( torch.Tensor([i]) == y_test )
             pred = self.binarize_pred(out[mask])
             ratios.append(i / self.nref)
-            percs.append( torch.sum(pred).div(testset_len) ) # torch.mean(pred) ?
+            percs.append( torch.sum(pred).div(pred.shape[0]) ) # torch.mean(pred) ?
         #end
         
         return ratios, percs
@@ -156,7 +160,7 @@ def get_Weber_frac(psycurves_splitted):
     
     ratios8  = np.array(ratios8)
     ratios16 = np.array(ratios16)
-    percs8  = np.array( [percs8[i].cpu().numpy() for i in range(ratios8.__len__())] )
+    percs8  = np.array([percs8[i].cpu().numpy() for i in range(ratios8.__len__())])
     percs16 = np.array([percs16[i].cpu().numpy() for i in range(ratios16.__len__())] )
     
     ratios = np.sort( np.hstack((ratios8, ratios16)) )
