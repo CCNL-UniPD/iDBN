@@ -124,7 +124,7 @@ class DeltaRule(torch.nn.Module):
         y = y.reshape(-1, 1)
         
         idx_range = ((y >= self.discr_range[0]) & 
-                     (y <= self.discr_range[-1])).flatten()
+                     (y <= self.discr_range[-1])).view(-1)
         x_test = x[idx_range]
         y_test = y[idx_range]
         
@@ -138,10 +138,10 @@ class DeltaRule(torch.nn.Module):
         
         for i in self.discr_range:
             
-            mask = ( torch.Tensor([i]) == y_test )
+            mask = ( torch.tensor(i) == y_test )
             pred = self.binarize_pred(out[mask])
             ratios.append(i / self.nref)
-            percs.append( torch.sum(pred).div(pred.shape[0]) ) # torch.mean(pred) ?
+            percs.append( torch.sum(pred).div(pred.shape[0]).item() ) # torch.mean(pred) ?
         #end
         
         return ratios, percs
@@ -150,6 +150,8 @@ class DeltaRule(torch.nn.Module):
 
 
 def get_Weber_frac(psycurves_splitted):
+    
+    import matplotlib.pyplot as plt
     
     def fit_function(ratios, Weber_frac):
         return norm.sf(0., loc = np.log(ratios), scale = np.sqrt(2) * Weber_frac)
@@ -160,12 +162,20 @@ def get_Weber_frac(psycurves_splitted):
     
     ratios8  = np.array(ratios8)
     ratios16 = np.array(ratios16)
-    percs8  = np.array([percs8[i].cpu().numpy() for i in range(ratios8.__len__())])
-    percs16 = np.array([percs16[i].cpu().numpy() for i in range(ratios16.__len__())] )
+    percs8  = np.array(percs8)
+    percs16 = np.array(percs16)
     
     ratios = np.sort( np.hstack((ratios8, ratios16)) )
     percs  = np.sort( np.hstack((percs8, percs16)) )
     
     pfit, _ = curve_fit(fit_function, ratios, percs, method = 'lm')
+    
+    fig, ax = plt.subplots(figsize = (5,3), dpi = 100)
+    ax.plot(ratios, fit_function(ratios, pfit), 'b')
+    ax.scatter(ratios8, percs8, color = 'k', marker = 'o', s = 20, label = 'Nref = 8')
+    ax.scatter(ratios16, percs16, color = 'k', marker = '^', s = 20, label = 'Nref = 16')
+    ax.legend()
+    plt.show(fig)
+    
     return pfit[0]
 #end

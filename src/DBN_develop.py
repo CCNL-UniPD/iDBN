@@ -53,6 +53,11 @@ NUM_DISCR      = CPARAMS['NUM_DISCR']
 if DATASET_ID == 'MNIST' and NUM_DISCR:
     raise ValueError('No numerosity discrimination with MNIST')
 #end
+if DATASET_ID == 'MNIST' and LAYERS != 3:
+    raise ValueError('LAYERS with MNIST should be 3')
+if DATASET_ID == 'SZ' and LAYERS != 2:
+    raise ValueError('LAYERS with SZ should be 2')
+#end
 
 with open(os.path.join(os.getcwd(), f'lparams-{DATASET_ID.lower()}.json'), 'r') as filestream:
     LPARAMS = json.load(filestream)
@@ -81,15 +86,15 @@ for run in range(RUNS):
     
     if DATASET_ID == 'MNIST':
         model = [
-            {'W' : torch.normal(0, 0.01, (784, 500)),  'a' : torch.zeros((1, 784)),  'b' : torch.zeros((1, 500))},
-            {'W' : torch.normal(0, 0.01, (500, 500)),  'a' : torch.zeros((1, 500)),  'b' : torch.zeros((1, 500))},
-            {'W' : torch.normal(0, 0.01, (500, 2000)), 'a' : torch.zeros((1, 500)),  'b' : torch.zeros((1, 2000))}
+            {'W' : 0.01 * torch.normal(0, 1, (784, 500)),  'a' : torch.zeros((1, 784)),  'b' : torch.zeros((1, 500))},
+            {'W' : 0.01 * torch.normal(0, 1, (500, 500)),  'a' : torch.zeros((1, 500)),  'b' : torch.zeros((1, 500))},
+            {'W' : 0.01 * torch.normal(0, 0.01, (500, 2000)), 'a' : torch.zeros((1, 500)),  'b' : torch.zeros((1, 2000))}
         ]
         
     elif DATASET_ID == 'SZ':
         model = [
-            {'W' : torch.normal(0, 0.01, (900, 80)), 'a' : torch.zeros((1, 900)), 'b' : torch.zeros((1, 80))},
-            {'W' : torch.normal(0, 0.01, (80, 400)), 'a' : torch.zeros((1, 80)),  'b' : torch.zeros((1, 400))}
+            {'W' : 0.1 * torch.normal(0, 1, (900, 80)), 'a' : torch.zeros((1, 900)), 'b' : torch.zeros((1, 80))},
+            {'W' : 0.1 * torch.normal(0, 1, (80, 400)), 'a' : torch.zeros((1, 80)),  'b' : torch.zeros((1, 400))}
         ]
     #end
     

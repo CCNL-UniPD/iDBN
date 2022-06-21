@@ -30,7 +30,7 @@ class DBN(torch.nn.Module):
         
         momenta = [ learning_params['INIT_MOMENTUM'], learning_params['FINAL_MOMENTUM'] ]
         lr = learning_params['LEARNING_RATE']
-        penalty = learning_params['WEIGHT_DECAY']
+        penalty = learning_params['WEIGHT_PENALTY']
         
         train_data = train_dataset['data']
         train_lbls = train_dataset['labels']
@@ -62,11 +62,10 @@ class DBN(torch.nn.Module):
                 indices = list(range(data.__len__()))
                 random.shuffle(indices)
                 
-                # for n in indices:
                 with tqdm(indices, unit = 'Batch') as tepoch:
                     for idx, n in enumerate(tepoch):
                         
-                        tepoch.set_description(f'Epoch {epoch}')
+                        tepoch.set_description(f'Epoch {epoch:03d}')
                         batch_size = data[n].shape[0]
                                                 
                         pos_v = data[n]
@@ -110,7 +109,7 @@ class DBN(torch.nn.Module):
                 #end with batches
                 
                 if readout:
-                    if (epoch + 1) % 2 == 0:
+                    if (epoch + 1) % 1 == 0:
                         
                         _activities = [None for n in range(train_data.__len__())]
                         
@@ -124,6 +123,7 @@ class DBN(torch.nn.Module):
                         
                         readout_accuracy = self.get_readout(_activities, t_activities, train_lbls, test_lbls)
                         self.acc_profile[epoch, layer_id] = readout_accuracy
+                        print(f'Readout accuracy = {readout_accuracy*100:.2f}')
                     #end
                 #end
                 
@@ -242,7 +242,7 @@ class DBN(torch.nn.Module):
                 #end WITH batches
                 
                 if readout:
-                    if (epoch + 1) % 2 == 0:
+                    if (epoch + 1) % 1 == 0:
                         
                         _activities = [None for n in range(train_data.__len__())]
                         
@@ -256,6 +256,7 @@ class DBN(torch.nn.Module):
                         
                         readout_accuracy = self.get_readout(_activities, t_activities, train_lbls, test_lbls)
                         self.acc_profile[epoch, layer_id] = readout_accuracy
+                        print(f'Readout accuracy = {readout_accuracy*100:.2f}')
                     #end
                 #end
                 
