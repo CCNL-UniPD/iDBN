@@ -88,7 +88,7 @@ for run in range(RUNS):
         model = [
             {'W' : 0.01 * torch.normal(0, 1, (784, 500)),  'a' : torch.zeros((1, 784)),  'b' : torch.zeros((1, 500))},
             {'W' : 0.01 * torch.normal(0, 1, (500, 500)),  'a' : torch.zeros((1, 500)),  'b' : torch.zeros((1, 500))},
-            {'W' : 0.01 * torch.normal(0, 0.01, (500, 2000)), 'a' : torch.zeros((1, 500)),  'b' : torch.zeros((1, 2000))}
+            {'W' : 0.01 * torch.normal(0, 1, (500, 2000)), 'a' : torch.zeros((1, 500)),  'b' : torch.zeros((1, 2000))}
         ]
         
     elif DATASET_ID == 'SZ':
