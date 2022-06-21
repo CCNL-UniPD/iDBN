@@ -127,7 +127,7 @@ class DBN(torch.nn.Module):
                     #end
                 #end
                 
-                self.loss_profile[epoch, layer_id] = train_loss.div(data.__len__())
+                self.loss_profile[epoch, layer_id] = train_loss.div(data.__len__()).item()
                 # print(f'Epoch {epoch} : MSE = {self.loss_profile[epoch, layer_id]:.4f}')
             #end epochs
             
@@ -264,7 +264,7 @@ class DBN(torch.nn.Module):
                 self.network[layer_id]['a'] = a.clone()
                 self.network[layer_id]['b'] = b.clone()
                 
-                self.loss_profile[epoch, layer_id] = train_loss.div(data.__len__())
+                self.loss_profile[epoch, layer_id] = train_loss.div(data.__len__()).item()
             #end FOR layers
             
             if self.num_discr and epoch in learning_params['EPOCHS_NDISCR']:
@@ -394,6 +394,13 @@ class DBN(torch.nn.Module):
         else:
             name_save = name
         #end
+        
+        for layer in self.network:
+            layer['W'].to(torch.device('cpu'))
+            layer['a'].to(torch.device('cpu'))
+            layer['b'].to(torch.device('cpu'))
+        #end
+        
         torch.save(self, open(os.path.join(self.path_model, f'{name_save}_model.mdl'), 'wb'))
     #end
 #end
