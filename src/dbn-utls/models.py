@@ -34,7 +34,8 @@ class DBN(torch.nn.Module):
     
     def train_greedy(self, train_dataset, test_dataset, learning_params, readout = False):
         
-        momenta = [ learning_params['INIT_MOMENTUM'], learning_params['FINAL_MOMENTUM'] ]
+        momenta = [ learning_params['INIT_MOMENTUM'], 
+                    learning_params['FINAL_MOMENTUM'] ]
         lr      = learning_params['LEARNING_RATE']
         penalty = learning_params['WEIGHT_PENALTY']
         
@@ -113,9 +114,6 @@ class DBN(torch.nn.Module):
                         mse = (pos_v - neg_pv).pow(2).sum(dim = 1).mean(dim = 0)
                         train_loss += mse
                         
-                        # last epoch : bacause we need projection only
-                        # when params update is over
-                        # if epoch == self.epochs - 1:
                         activities[n], _ = self.sample(W, b, pos_v)
                         #end
                         
@@ -123,22 +121,20 @@ class DBN(torch.nn.Module):
                     #end batches
                 #end with batches
                 
-                for n in list(range(test_batches)):
-                    t_activities[n], _ = self.sample(W, b, t_data[n])
-                #end
+                t_activities = self.sample(W, b, t_data)
                 
                 if readout:
                     
                     if (epoch + 1) % 1 == 0:
                         
-                        readout_accuracy = self.get_readout(activities, t_activities, train_lbls, test_lbls)
+                        readout_accuracy = self.get_readout(activities, t_activities, 
+                                                            train_lbls, test_lbls)
                         self.acc_profile[epoch, layer_id] = readout_accuracy
                         print(f'Readout accuracy = {readout_accuracy*100:.2f}')
                     #end
                 #end
                 
                 self.loss_profile[epoch, layer_id] = train_loss.div(data.__len__()).item()
-                # print(f'Epoch {epoch} : MSE = {self.loss_profile[epoch, layer_id]:.4f}')
             #end epochs
             
             self.network[layer_id]['W'] = W.clone()
@@ -152,14 +148,16 @@ class DBN(torch.nn.Module):
         
         if num_discr:
             self.num_discr = True
-            self.Weber_fracs = pd.DataFrame(columns = range(learning_params['NUM_LCLASSIFIERS']),
-                                            index   = learning_params['EPOCHS_NDISCR'])
+            self.Weber_fracs = pd.DataFrame(
+                columns = range(learning_params['NUM_LCLASSIFIERS']),
+                index   = learning_params['EPOCHS_NDISCR'])
             self.psycurves = dict()
         else:
             self.num_discr = False
         #end
         
-        momenta = [ learning_params['INIT_MOMENTUM'], learning_params['FINAL_MOMENTUM'] ]
+        momenta = [ learning_params['INIT_MOMENTUM'], 
+                    learning_params['FINAL_MOMENTUM'] ]
         lr = learning_params['LEARNING_RATE']
         penalty = learning_params['WEIGHT_PENALTY']
         
@@ -175,16 +173,16 @@ class DBN(torch.nn.Module):
         activities = None
         t_activities = None
         
+        velocities = list()
+        for layer in self.network:
+            velocities.append({
+                'dW' : torch.zeros_like(layer['W']),
+                'da' : torch.zeros_like(layer['a']),
+                'db' : torch.zeros_like(layer['b'])
+            })
+        #end
+        
         for epoch in range(self.epochs):
-            
-            velocities = list()
-            for layer in self.network:
-                velocities.append({
-                    'dW' : torch.zeros_like(layer['W']),
-                    'da' : torch.zeros_like(layer['a']),
-                    'db' : torch.zeros_like(layer['b'])
-                })
-            #end
             
             print(f'Epoch {epoch:03d}')
             
@@ -207,9 +205,6 @@ class DBN(torch.nn.Module):
                 a = layer['a'].clone(); da = velocities[layer_id]['da'].clone()
                 b = layer['b'].clone(); db = velocities[layer_id]['db'].clone()
                 
-                # for n in list(range(test_batches)):
-                #     t_activities[n], _ = self.sample(W, b, t_data[n])
-                # #end
                 t_activities, _ = self.sample(W, b, t_data)
                 
                 indices = list(range(train_batches))
@@ -248,9 +243,9 @@ class DBN(torch.nn.Module):
                         da = momentum * da + lr * (pos_da - neg_da)
                         db = momentum * db + lr * (pos_db - neg_db)
                         
-                        W = W + dW
-                        a = a + da
-                        b = b + db
+                        W = W + dW; velocities[layer_id]['W'] = dW
+                        a = a + da; velocities[layer_id]['a'] = da
+                        b = b + db; velocities[layer_id]['b'] = db
                         
                         mse = (pos_v - neg_pv).pow(2).sum(dim = 1).mean(dim = 0)
                         train_loss += mse
@@ -264,7 +259,8 @@ class DBN(torch.nn.Module):
                     
                     if (epoch + 1) % 1 == 0:
                         
-                        readout_accuracy = self.get_readout(activities, t_activities, train_lbls, test_lbls)
+                        readout_accuracy = self.get_readout(activities, t_activities,
+                                                            train_lbls, test_lbls)
                         self.acc_profile[epoch, layer_id] = readout_accuracy
                         print(f'Readout accuracy = {readout_accuracy*100:.2f}')
                     #end
@@ -411,7 +407,8 @@ class DBN(torch.nn.Module):
             layer['b'].to(torch.device('cpu'))
         #end
         
-        torch.save(self, open(os.path.join(self.path_model, f'{name_save}_model.mdl'), 'wb'))
+        torch.save(self, open(os.path.join(self.path_model, 
+                                           f'{name_save}_model.mdl'), 'wb'))
     #end
 #end
 
