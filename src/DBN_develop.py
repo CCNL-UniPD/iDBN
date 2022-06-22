@@ -73,35 +73,54 @@ if NUM_DISCR:
     NUM_LCLASSFRS  = LPARAMS['NUM_LCLASSIFIERS']
     EPOCHS_NDISCR  = LPARAMS['EPOCHS_NDISCR']
 #end
+# -----------------------------------------------------
 
+# -----------------------------------------------------
+# Load data
 train_dataset = pickle.load(open(os.path.join(PATH_DATA, 'train_dataset.pkl'), 'rb'))
 test_dataset  = pickle.load(open(os.path.join(PATH_DATA, 'test_dataset.pkl'),  'rb'))
 
+# Converto to cuda, if available
+train_dataset['data'] = train_dataset['data'].to(DEVICE)
+test_dataset['data']  = test_dataset['data'].to(DEVICE)
+train_dataset['labels'] = train_dataset['labels'].to(DEVICE)
+test_dataset['labels']  = test_dataset['labels'].to(DEVICE)
+
+# -----------------------------------------------------
+# Initialize performance metrics data structures
 loss_metrics = np.zeros((RUNS, EPOCHS, LAYERS))
 acc_metrics  = np.zeros((RUNS, EPOCHS, LAYERS))
 Weber_fracs  = list()
 psycurves    = list()
+# -----------------------------------------------------
 
+
+# -----------------------------------------------------
+# Runs
 for run in range(RUNS):
     
     if DATASET_ID == 'MNIST':
         model = [
-            {'W' : 0.01 * torch.normal(0, 1, (784, 500)),  'a' : torch.zeros((1, 784)),  'b' : torch.zeros((1, 500))},
-            {'W' : 0.01 * torch.normal(0, 1, (500, 500)),  'a' : torch.zeros((1, 500)),  'b' : torch.zeros((1, 500))},
-            {'W' : 0.01 * torch.normal(0, 1, (500, 2000)), 'a' : torch.zeros((1, 500)),  'b' : torch.zeros((1, 2000))}
+            {'W' : 0.01 * torch.nn.init.normal_(torch.empty(784, 500), mean = 0, std = 1),  
+             'a' : torch.zeros((1, 784)),  
+             'b' : torch.zeros((1, 500))},
+            {'W' : 0.01 * torch.nn.init.normal_(torch.empty(500, 500), mean = 0, std = 1),  
+             'a' : torch.zeros((1, 500)),  
+             'b' : torch.zeros((1, 500))},
+            {'W' : 0.01 * torch.nn.init.normal_(torch.empty(500, 2000), mean = 0, std = 1), 
+             'a' : torch.zeros((1, 500)),  
+             'b' : torch.zeros((1, 2000))}
         ]
         
     elif DATASET_ID == 'SZ':
         model = [
-            {'W' : 0.1 * torch.normal(0, 1, (900, 80)), 'a' : torch.zeros((1, 900)), 'b' : torch.zeros((1, 80))},
-            {'W' : 0.1 * torch.normal(0, 1, (80, 400)), 'a' : torch.zeros((1, 80)),  'b' : torch.zeros((1, 400))}
+            {'W' : 0.1 * torch.nn.init.normal_(0, 1, (900, 80)), 
+             'a' : torch.zeros((1, 900)), 
+             'b' : torch.zeros((1, 80))},
+            {'W' : 0.1 * torch.nn.init.normal_(0, 1, (80, 400)), 
+             'a' : torch.zeros((1, 80)),  
+             'b' : torch.zeros((1, 400))}
         ]
-    #end
-    
-    for layer in model:
-        for key in layer.keys():
-            layer[key].to(DEVICE)
-        #end
     #end
     
     dbn = DBN(model, ALG_NAME, PATH_MODEL, EPOCHS).to(DEVICE)
@@ -127,7 +146,10 @@ for run in range(RUNS):
     
     dbn.save(name = f'run{run}')
 #end
+# -----------------------------------------------------
 
+# -----------------------------------------------------
+# Serialize results
 with open(os.path.join(PATH_MODEL, 'loss_metrics.pkl'), 'wb') as f:
     pickle.dump(loss_metrics, f)
 f.close()
@@ -145,5 +167,6 @@ if NUM_DISCR:
         pickle.dump(psycurves, f)
     f.close()
 #end
+# -----------------------------------------------------
 
 

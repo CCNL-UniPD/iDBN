@@ -9,10 +9,13 @@ import torch
 import torchvision
 from torch.utils.data import DataLoader
 
-
 import json
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.getcwd(), 'config.env'))
+
+
+NUM_FEAT_MNIST = np.int32(784)
+NUM_FEAT_SZ    = np.int32(900)
 
 PATH_DATA = os.getenv('PATH_DATA')
 
@@ -32,10 +35,6 @@ filestream.close()
 
 BATCH_SIZE = LPARAMS['BATCH_SIZE']
 
-train_data   = list(); test_data   = list()
-train_labels = list(); test_labels = list()
-
-
 if DATASET_ID == 'MNIST':
     
     mnist_train = torchvision.datasets.MNIST(PATH_DATA, train = True, download = True,
@@ -50,23 +49,31 @@ if DATASET_ID == 'MNIST':
     train_loader = DataLoader(mnist_train, batch_size = BATCH_SIZE, shuffle = True)
     test_loader  = DataLoader(mnist_test, batch_size = BATCH_SIZE, shuffle = False)
     
+    num_batches = mnist_train.__len__() // BATCH_SIZE
+    train_data = torch.empty(num_batches, BATCH_SIZE, NUM_FEAT_MNIST)
+    train_labels = torch.empty(num_batches, BATCH_SIZE, 1)
+    
     with tqdm(train_loader, unit = 'Batch') as tdata:
         
         for idx, (batch, labels) in enumerate(tdata):
             tdata.set_description(f'Train Batch {idx}\t')
             bsize = batch.shape[0]
-            train_data.append(batch.reshape(bsize, -1))
-            train_labels.append(labels.reshape(bsize, -1).type(torch.float32))
+            train_data[idx,:,:] = batch.reshape(bsize, -1).type(torch.float32)
+            train_labels[idx,:,:] = labels.reshape(bsize, -1).type(torch.float32)
         #end
     #end
+    
+    num_batches = mnist_test.__len__() // BATCH_SIZE
+    test_data = torch.empty(num_batches, BATCH_SIZE, NUM_FEAT_MNIST)
+    test_labels = torch.empty(num_batches, BATCH_SIZE, 1)
     
     with tqdm(test_loader, unit = 'Batch') as tdata:
         
         for idx, (batch, labels) in enumerate(tdata):
             tdata.set_description(f'Test Batch {idx}\t')
             bsize = batch.shape[0]
-            test_data.append(batch.reshape(bsize, -1))
-            test_labels.append(labels.reshape(bsize, -1).type(torch.float32))
+            test_data[idx,:,:] = batch.reshape(bsize, -1).type(torch.float32)
+            test_labels[idx,:,:] = labels.reshape(bsize, -1).type(torch.float32)
         #end
     #end
     
@@ -87,14 +94,17 @@ elif DATASET_ID == 'SZ':
     
     train_data = list()
     train_labels = list()
-    
     num_batches = data.shape[0] // BATCH_SIZE
+    train_data = torch.empty(num_batches, BATCH_SIZE, NUM_FEAT_SZ)
+    train_labels = torch.empty(num_batches, BATCH_SIZE, 1)
+    
     with tqdm(range(num_batches), unit = 'Batch') as tdata:
         
         for n in tdata:
             tdata.set_description(f'Train Batch {n}\t')
-            train_data.append( torch.Tensor(data[n : n + BATCH_SIZE, :]).type(torch.float32) )
-            train_labels.append( torch.Tensor(labels[n : n + BATCH_SIZE]).type(torch.float32) )
+            train_data[n,:,:] = torch.Tensor(data[n : n + BATCH_SIZE, :]).type(torch.float32)
+            unsqz_labels = torch.Tensor(labels[n : n + BATCH_SIZE]).type(torch.float32)
+            train_labels[n,:,:] = unsqz_labels.reshape(-1,1)
         #end
     #end
     
@@ -109,14 +119,17 @@ elif DATASET_ID == 'SZ':
     
     test_data = list()
     test_labels = list()
-    
     num_batches = data.shape[0] // BATCH_SIZE
+    test_data = torch.empty(num_batches, BATCH_SIZE, NUM_FEAT_SZ)
+    test_labels = torch.empty(num_batches, BATCH_SIZE, 1)
+    
     with tqdm(range(num_batches), unit = 'Batch') as tdata:
         
         for n in tdata:
             tdata.set_description(f'Test Batch {n}\t')
-            test_data.append( torch.Tensor(data[n : n + BATCH_SIZE, :]).type(torch.float32) )
-            test_labels.append( torch.Tensor(labels[n : n + BATCH_SIZE]).type(torch.float32) )
+            test_data[n,:,:] = torch.Tensor(data[n : n + BATCH_SIZE, :]).type(torch.float32)
+            unsqz_labels = torch.Tensor(labels[n : n + BATCH_SIZE]).type(torch.float32)
+            test_labels[n,:,:] = unsqz_labels.reshape(-1,1)
         #end
     #end
     

@@ -24,12 +24,18 @@ class DBN(torch.nn.Module):
         self.acc_profile = np.ones((epochs, network.__len__())) * np.nan
         self.path_model = path_model
         self.epochs = epochs
+        
+        for layer in self.network:
+            layer['W'].to(DEVICE)
+            layer['a'].to(DEVICE)
+            layer['b'].to(DEVICE)
+        #end
     #end
     
     def train_greedy(self, train_dataset, test_dataset, learning_params, readout = False):
         
         momenta = [ learning_params['INIT_MOMENTUM'], learning_params['FINAL_MOMENTUM'] ]
-        lr = learning_params['LEARNING_RATE']
+        lr      = learning_params['LEARNING_RATE']
         penalty = learning_params['WEIGHT_PENALTY']
         
         train_data = train_dataset['data']
@@ -37,20 +43,29 @@ class DBN(torch.nn.Module):
         test_data  = test_dataset['data']
         test_lbls  = test_dataset['labels']
         
-        activities = [None for n in range(train_data.__len__())]
-        t_activities = [None for n in range(test_data.__len__())]
+        train_batches = train_data.shape[0]
+        test_batches  = test_data.shape[0]
+        batch_size    = learning_params['BATCH_SIZE']
+        
+        activities   = None
+        t_activities = None
         
         print('train')
         for layer_id, layer in enumerate(self.network):
             print(f'Layer {layer_id}')
             
+            N_out = layer['W'].shape[1]
+            
             if layer_id == 0:
-                data = [batch.clone() for batch in train_data]
-                if readout: t_data = [batch.clone() for batch in test_data]
+                data   = train_data.clone()
+                t_data = test_data.clone()
             else:
-                data = [batch.clone() for batch in activities]
-                if readout: t_data = [batch.clone() for batch in t_activities]
+                data   = activities.clone()
+                t_data = t_activities.clone()
             #end
+            
+            activities   = torch.zeros(train_batches, batch_size, N_out)
+            t_activities = torch.zeros(test_batches, batch_size, N_out)
             
             W = layer['W'].clone(); dW = torch.zeros_like(W)
             a = layer['a'].clone(); da = torch.zeros_like(a)
@@ -59,7 +74,7 @@ class DBN(torch.nn.Module):
             for epoch in range(self.epochs):
                 
                 train_loss = 0.
-                indices = list(range(data.__len__()))
+                indices = list(range(train_batches))
                 random.shuffle(indices)
                 
                 with tqdm(indices, unit = 'Batch') as tepoch:
@@ -67,10 +82,10 @@ class DBN(torch.nn.Module):
                         
                         tepoch.set_description(f'Epoch {epoch:03d}')
                         batch_size = data[n].shape[0]
-                                                
+                        
                         pos_v = data[n]
                         pos_ph, pos_h = self.sample(W, b, pos_v)
-                        neg_pv, neg_v = self.sample(W.t(), a, pos_h)
+                        neg_pv, neg_v = self.sample(W.t(), a, pos_ph)
                         neg_ph, neg_h = self.sample(W, b, neg_v)
                         
                         pos_dW = torch.matmul(pos_v.t(), pos_ph).div(batch_size)
@@ -100,28 +115,23 @@ class DBN(torch.nn.Module):
                         
                         # last epoch : bacause we need projection only
                         # when params update is over
-                        if epoch == self.epochs - 1:
-                            activities[n], _ = self.sample(W, b, pos_v)
+                        # if epoch == self.epochs - 1:
+                        activities[n], _ = self.sample(W, b, pos_v)
                         #end
                         
                         tepoch.set_postfix(MSE = train_loss.div(idx + 1).item())
                     #end batches
                 #end with batches
                 
+                for n in list(range(test_batches)):
+                    t_activities[n], _ = self.sample(W, b, t_data[n])
+                #end
+                
                 if readout:
+                    
                     if (epoch + 1) % 1 == 0:
                         
-                        _activities = [None for n in range(train_data.__len__())]
-                        
-                        for n in list(range(data.__len__())):
-                            _activities[n], _ = self.sample(W, b, data[n])
-                        #end
-                        
-                        for n in list(range(t_data.__len__())):
-                            t_activities[n], _ = self.sample(W, b, t_data[n])
-                        #end
-                        
-                        readout_accuracy = self.get_readout(_activities, t_activities, train_lbls, test_lbls)
+                        readout_accuracy = self.get_readout(activities, t_activities, train_lbls, test_lbls)
                         self.acc_profile[epoch, layer_id] = readout_accuracy
                         print(f'Readout accuracy = {readout_accuracy*100:.2f}')
                     #end
@@ -158,6 +168,13 @@ class DBN(torch.nn.Module):
         test_data  = test_dataset['data']
         test_lbls  = test_dataset['labels']
         
+        train_batches = train_data.shape[0]
+        test_batches  = test_data.shape[0]
+        batch_size    = learning_params['BATCH_SIZE']
+        
+        activities = None
+        t_activities = None
+        
         for epoch in range(self.epochs):
             
             velocities = list()
@@ -169,30 +186,33 @@ class DBN(torch.nn.Module):
                 })
             #end
             
-            activities = [None for n in range(train_data.__len__())]
-            t_activities = [None for n in range(test_data.__len__())]
-            
             print(f'Epoch {epoch:03d}')
             
             for layer_id, layer in enumerate(self.network):
                 
+                N_out = layer['W'].shape[1]
+                
                 if layer_id == 0:
-                    data = [batch.clone() for batch in train_data]
-                    t_data = [batch.clone() for batch in test_data]
+                    data   = train_data.clone()
+                    t_data = test_data.clone()
                 else:
-                    data = [batch.clone() for batch in activities]
-                    t_data = [batch.clone() for batch in t_activities]
+                    data   = activities.clone()
+                    t_data = t_activities.clone()
                 #end
+                
+                activities   = torch.zeros(train_batches, batch_size, N_out)
+                t_activities = torch.zeros(test_batches, batch_size, N_out)
                 
                 W = layer['W'].clone(); dW = velocities[layer_id]['dW'].clone()
                 a = layer['a'].clone(); da = velocities[layer_id]['da'].clone()
                 b = layer['b'].clone(); db = velocities[layer_id]['db'].clone()
                 
-                for n in list(range(test_data.__len__())):
-                    t_activities[n], _ = self.sample(W, b, t_data[n])
-                #end
+                # for n in list(range(test_batches)):
+                #     t_activities[n], _ = self.sample(W, b, t_data[n])
+                # #end
+                t_activities, _ = self.sample(W, b, t_data)
                 
-                indices = list(range(data.__len__()))
+                indices = list(range(train_batches))
                 train_loss = 0.
                 
                 random.shuffle(indices)
@@ -202,13 +222,12 @@ class DBN(torch.nn.Module):
                         tlayer.set_description(f'Layer {layer_id}')
                         batch_size = data[n].shape[0]
                         
-                        pos_v = data[n]
-                        
                         # Propagation of activity before parameters update!!!
-                        activities[n], _ = self.sample(W, b, pos_v)
+                        activities[n], _ = self.sample(W, b, data[n].clone())
                         
+                        pos_v = data[n].clone()
                         pos_ph, pos_h = self.sample(W, b, pos_v)
-                        neg_pv, neg_v = self.sample(W.t(), a, pos_h)
+                        neg_pv, neg_v = self.sample(W.t(), a, pos_ph)
                         neg_ph, neg_h = self.sample(W, b, neg_v)
                         
                         pos_dW = torch.matmul(pos_v.t(), pos_ph).div(batch_size)
@@ -242,19 +261,10 @@ class DBN(torch.nn.Module):
                 #end WITH batches
                 
                 if readout:
+                    
                     if (epoch + 1) % 1 == 0:
                         
-                        _activities = [None for n in range(train_data.__len__())]
-                        
-                        for n in list(range(data.__len__())):
-                            _activities[n], _ = self.sample(W, b, data[n])
-                        #end
-                        
-                        for n in list(range(t_data.__len__())):
-                            t_activities[n], _ = self.sample(W, b, t_data[n])
-                        #end
-                        
-                        readout_accuracy = self.get_readout(_activities, t_activities, train_lbls, test_lbls)
+                        readout_accuracy = self.get_readout(activities, t_activities, train_lbls, test_lbls)
                         self.acc_profile[epoch, layer_id] = readout_accuracy
                         print(f'Readout accuracy = {readout_accuracy*100:.2f}')
                     #end
@@ -376,10 +386,10 @@ class DBN(torch.nn.Module):
     def get_readout(self, x_train, x_test, y_train, y_test):
         
         nfeat  = x_train[0].shape[-1]
-        Xtrain = torch.Tensor( torch.cat([batch for batch in x_train], dim = 0) ).numpy().reshape(-1, nfeat)
-        Xtest  = torch.Tensor( torch.cat([batch for batch in x_test],  dim = 0) ).numpy().reshape(-1, nfeat)
-        Ytrain = torch.Tensor( torch.cat([batch for batch in y_train], dim = 0) ).numpy().flatten()
-        Ytest  = torch.Tensor( torch.cat([batch for batch in y_test],  dim = 0) ).numpy().flatten()
+        Xtrain = x_train.cpu().numpy().reshape(-1, nfeat)
+        Ytrain = y_train.cpu().numpy().flatten()
+        Xtest  = x_test.cpu().numpy().reshape(-1, nfeat)
+        Ytest  = y_test.cpu().numpy().flatten()
         
         classifier = RidgeClassifier().fit(Xtrain, Ytrain)
         y_pred = classifier.predict(Xtest)
