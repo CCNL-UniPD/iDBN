@@ -200,12 +200,11 @@ class DBN(torch.nn.Module):
                 
                 activities   = torch.zeros(train_batches, batch_size, N_out)
                 t_activities = torch.zeros(test_batches, batch_size, N_out)
+                t_activities, _ = self.sample(layer['W'], layer['b'], t_data)
                 
                 W = layer['W'].clone(); dW = velocities[layer_id]['dW'].clone()
                 a = layer['a'].clone(); da = velocities[layer_id]['da'].clone()
                 b = layer['b'].clone(); db = velocities[layer_id]['db'].clone()
-                
-                t_activities, _ = self.sample(W, b, t_data)
                 
                 indices = list(range(train_batches))
                 train_loss = 0.
@@ -213,7 +212,7 @@ class DBN(torch.nn.Module):
                 random.shuffle(indices)
                 with tqdm(indices, unit = 'Batch') as tlayer:
                     for idx, n in enumerate(tlayer):
-                                                
+                        
                         tlayer.set_description(f'Layer {layer_id}')
                         batch_size = data[n].shape[0]
                         
@@ -243,9 +242,9 @@ class DBN(torch.nn.Module):
                         da = momentum * da + lr * (pos_da - neg_da)
                         db = momentum * db + lr * (pos_db - neg_db)
                         
-                        W = W + dW; velocities[layer_id]['W'] = dW
-                        a = a + da; velocities[layer_id]['a'] = da
-                        b = b + db; velocities[layer_id]['b'] = db
+                        W = W + dW; velocities[layer_id]['dW'] = dW.clone()
+                        a = a + da; velocities[layer_id]['da'] = da.clone()
+                        b = b + db; velocities[layer_id]['db'] = db.clone()
                         
                         mse = (pos_v - neg_pv).pow(2).sum(dim = 1).mean(dim = 0)
                         train_loss += mse
