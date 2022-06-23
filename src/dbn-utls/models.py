@@ -111,7 +111,7 @@ class DBN(torch.nn.Module):
                         a = a + da
                         b = b + db
                         
-                        mse = (pos_v - neg_pv).pow(2).sum(dim = 1).mean(dim = 0)
+                        mse = (pos_v - neg_pv).pow(2).mean() #.sum(dim = 1).mean(dim = 0)
                         train_loss += mse
                         
                         activities[n], _ = self.sample(W, b, pos_v)
@@ -220,9 +220,11 @@ class DBN(torch.nn.Module):
                         activities[n], _ = self.sample(W, b, data[n].clone())
                         
                         pos_v = data[n].clone()
+                        # pos_ph, pos_h = self.sample(W, b, pos_v)
+                        # neg_pv, neg_v = self.sample(W.t(), a, pos_ph)
+                        # neg_ph, neg_h = self.sample(W, b, neg_v)
                         pos_ph, pos_h = self.sample(W, b, pos_v)
-                        neg_pv, neg_v = self.sample(W.t(), a, pos_ph)
-                        neg_ph, neg_h = self.sample(W, b, neg_v)
+                        neg_ph, neg_v, neg_pv = self.Gibbs_sampling(pos_v, W, a, b)
                         
                         pos_dW = torch.matmul(pos_v.t(), pos_ph).div(batch_size)
                         pos_da = pos_v.mean(dim = 0)
@@ -246,7 +248,7 @@ class DBN(torch.nn.Module):
                         a = a + da; velocities[layer_id]['da'] = da.clone()
                         b = b + db; velocities[layer_id]['db'] = db.clone()
                         
-                        mse = (pos_v - neg_pv).pow(2).sum(dim = 1).mean(dim = 0)
+                        mse = (pos_v - neg_pv).pow(2).mean() #.sum(dim = 1).mean(dim = 0)
                         train_loss += mse
                         
                         tlayer.set_postfix(MSE = train_loss.div(idx + 1).item())
@@ -376,6 +378,17 @@ class DBN(torch.nn.Module):
         probabilities = torch.sigmoid( torch.matmul(activity, weight).add(bias) )
         activities = torch.bernoulli(probabilities)
         return probabilities, activities
+    #end
+    
+    def Gibbs_sampling(self, pos_v, W, a, b):
+        
+        v = pos_v.clone()
+        
+        p_h, h = self.sample(W, b, v)
+        p_v, v = self.sample(W.t(), a, h)
+        p_h, h = self.sample(W, b, v)
+        
+        return p_h, v, p_v
     #end
     
     def get_readout(self, x_train, x_test, y_train, y_test):
