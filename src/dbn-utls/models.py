@@ -323,6 +323,8 @@ class DBN(torch.nn.Module):
         test_batches  = test_data.shape[0]
         batch_size    = learning_params['BATCH_SIZE']
         
+        activities = None
+        
         velocities = list()
         for layer in self.network:
             velocities.append({
@@ -339,45 +341,81 @@ class DBN(torch.nn.Module):
             indices = list(range(train_batches))
             train_loss = 0.
             
-            random.shuffle(indices)
-            with tqdm(indices, unit = 'Batch') as tlayer:
-                for idx, n in enumerate(tlayer):
+            act_saved = dict()
+            for layer_id, layer in enumerate(self.network):
+                
+                N_in  = layer['W'].shape[0]
+                N_out = layer['W'].shape[1]
+                
+                act_saved.update({ f'layer{layer_id}' : {
+                        'pos_v'  : torch.zeros((train_batches, batch_size, N_in)),
+                        'pos_h'  : torch.zeros((train_batches, batch_size, N_out)),
+                        'pos_ph' : torch.zeros((train_batches, batch_size, N_out)),
+                        'neg_v'  : torch.zeros((train_batches, batch_size, N_in)),
+                        'neg_pv' : torch.zeros((train_batches, batch_size, N_in)) } 
+                    })
+            #end
+            
+            
+            for layer_id, layer in enumerate(self.network):
+                
+                if layer_id == 0:
+                    data = train_data.clone()
+                else:
+                    data = activities.clone()
+                #end
+                
+                N_out = layer['W'].shape[1]
+                activities = torch.zeros(train_batches, batch_size, N_out)
+                
+                for n in indices:
                     
-                    act_saved = {
-                        'layer0' : list(),
-                        'layer1' : list(),
-                        'layer2' : list()
-                    }
+                    v = data[n].clone()
+                    p_h, h = self.sample(layer['W'], layer['b'], v)
+                    act_saved[f'layer{layer_id}']['pos_v'][n]  = v    # pos v
+                    act_saved[f'layer{layer_id}']['pos_h'][n]  = h    # pos h
+                    act_saved[f'layer{layer_id}']['pos_ph'][n] = p_h  # pos ph
+                    activities[n] = h.clone()
+                #end
+            #end
+            
+            for layer_id in range(self.network.__len__()):
+                
+                layer_id_true = self.network.__len__() - layer_id - 1
+                
+                for n in indices:
                     
-                    v = train_data[n].clone()
-                    
-                    for layer_id, layer in enumerate(self.network):
+                    h = act_saved[f'layer{layer_id_true}']['pos_h'][n].clone()
+                    p_v, v = self.sample(self.network[layer_id_true]['W'].t(), 
+                                         self.network[layer_id_true]['a'], h)
+                    act_saved[f'layer{layer_id_true}']['neg_v'][n]  = v    # negative v
+                    act_saved[f'layer{layer_id_true}']['neg_pv'][n] = p_v  # negative pv
+                #end
+            #end
+            
+            for layer_id, layer in enumerate(self.network):
+                
+                print(f'Layer {layer_id}')
+                
+                W = layer['W'].clone(); dW = velocities[layer_id]['dW'].clone()
+                a = layer['a'].clone(); da = velocities[layer_id]['da'].clone()
+                b = layer['b'].clone(); db = velocities[layer_id]['db'].clone()
+                
+                indices = list(range(train_batches))
+                train_loss = 0.
+                
+                random.shuffle(indices)
+                with tqdm(indices, unit = 'Batch') as tlayer:
+                    for idx, n in enumerate(tlayer):
                         
-                        p_h, h = self.sample(layer['W'], layer['b'], v)
-                        act_saved[f'layer{layer_id}'].append(v)   # pos v
-                        act_saved[f'layer{layer_id}'].append(h)   # pos h
-                        act_saved[f'layer{layer_id}'].append(p_h) # pos ph
-                        v = h.clone()
-                    #end
-                    
-                    for layer_id in range(self.network.__len__()):
+                        tlayer.set_description(f'Layer {layer_id}')
+                        batch_size = data[n].shape[0]
                         
-                        layer_id_true = self.network.__len__() - layer_id - 1
-                        h = act_saved[f'layer{layer_id_true}'][1].clone()
-                        p_v, v = self.sample(self.network[layer_id_true]['W'].t(), 
-                                             self.network[layer_id_true]['a'], h)
-                        act_saved[f'layer{layer_id_true}'].append(v)    # negative v
-                        act_saved[f'layer{layer_id_true}'].append(p_v)  # negative pv
-                        h = v.clone()
-                    #end
-                    
-                    for layer_id, layer in enumerate(self.network):
+                        pos_v  = act_saved[f'layer{layer_id}']['pos_v'][n]
+                        pos_ph = act_saved[f'layer{layer_id}']['pos_ph'][n]
+                        neg_v  = act_saved[f'layer{layer_id}']['neg_v'][n]
+                        neg_pv = act_saved[f'layer{layer_id}']['neg_pv'][n]
                         
-                        W = layer['W'].clone(); dW = velocities[layer_id]['dW'].clone()
-                        a = layer['a'].clone(); da = velocities[layer_id]['da'].clone()
-                        b = layer['b'].clone(); db = velocities[layer_id]['db'].clone()
-                        
-                        pos_v, pos_h, pos_ph, neg_v, neg_pv = act_saved[f'layer{layer_id}']
                         neg_ph, neg_h = self.sample(W, b, neg_v)
                         
                         pos_dW = torch.matmul(pos_v.t(), pos_ph).div(batch_size)
@@ -406,14 +444,15 @@ class DBN(torch.nn.Module):
                         train_loss += mse
                         
                         tlayer.set_postfix(MSE = train_loss.div(idx + 1).item())
-                        
-                        self.network[layer_id]['W'] = W.clone()
-                        self.network[layer_id]['a'] = a.clone()
-                        self.network[layer_id]['b'] = b.clone()
-                    #end
+                    #end BATCHES
+                #end WITH
                 
-                #end BATCHES
-            #end WITH
+                self.network[layer_id]['W'] = W.clone()
+                self.network[layer_id]['a'] = a.clone()
+                self.network[layer_id]['b'] = b.clone()
+                
+                self.loss_profile[epoch, layer_id] = train_loss.div(data.__len__()).item()
+            #end LAYERS
             
         #end EPOCHS
     #end
