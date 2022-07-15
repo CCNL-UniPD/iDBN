@@ -397,6 +397,15 @@ class DBN(torch.nn.Module):
                 
                 print(f'Layer {layer_id}')
                 
+                if layer_id == 0:
+                    data = train_data.clone()
+                else:
+                    data = activities.clone()
+                #end
+                
+                N_out = layer['W'].shape[1]
+                activities = torch.zeros(train_batches, batch_size, N_out)
+                
                 W = layer['W'].clone(); dW = velocities[layer_id]['dW'].clone()
                 a = layer['a'].clone(); da = velocities[layer_id]['da'].clone()
                 b = layer['b'].clone(); db = velocities[layer_id]['db'].clone()
