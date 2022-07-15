@@ -315,12 +315,8 @@ class DBN(torch.nn.Module):
         penalty = learning_params['WEIGHT_PENALTY']
         
         train_data = train_dataset['data']
-        train_lbls = train_dataset['labels']
-        test_data  = test_dataset['data']
-        test_lbls  = test_dataset['labels']
         
         train_batches = train_data.shape[0]
-        test_batches  = test_data.shape[0]
         batch_size    = learning_params['BATCH_SIZE']
         
         activities = None
@@ -338,9 +334,6 @@ class DBN(torch.nn.Module):
             
             print(f'Epoch {epoch:03d}')
             
-            indices = list(range(train_batches))
-            train_loss = 0.
-            
             act_saved = dict()
             for layer_id, layer in enumerate(self.network):
                 
@@ -356,6 +349,7 @@ class DBN(torch.nn.Module):
                     })
             #end
             
+            indices = list(range(train_batches))
             
             for layer_id, layer in enumerate(self.network):
                 
@@ -407,7 +401,7 @@ class DBN(torch.nn.Module):
                 indices = list(range(train_batches))
                 train_loss = 0.
                 
-                random.shuffle(indices)
+                # random.shuffle(indices)
                 with tqdm(indices, unit = 'Batch') as tlayer:
                     for idx, n in enumerate(tlayer):
                         
