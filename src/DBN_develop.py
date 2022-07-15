@@ -15,6 +15,9 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.getcwd(), 'config.env'))
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+if torch.cuda.is_available():
+    torch.set_default_tensor_type('torch.cuda.FloatTensor')
+#end
 
 # -----------------------------------------------------
 # LOAD GLOBAL PATH VARIABLES
