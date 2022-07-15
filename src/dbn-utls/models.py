@@ -375,7 +375,7 @@ class DBN(torch.nn.Module):
                     act_saved[f'layer{layer_id}']['pos_v'][n]  = v    # pos v
                     act_saved[f'layer{layer_id}']['pos_h'][n]  = h    # pos h
                     act_saved[f'layer{layer_id}']['pos_ph'][n] = p_h  # pos ph
-                    activities[n] = h.clone()
+                    activities[n] = p_h.clone()
                 #end
             #end
             
@@ -411,7 +411,7 @@ class DBN(torch.nn.Module):
                         tlayer.set_description(f'Layer {layer_id}')
                         batch_size = data[n].shape[0]
                         
-                        pos_v  = act_saved[f'layer{layer_id}']['pos_v'][n]
+                        pos_v  = data[n].clone() #act_saved[f'layer{layer_id}']['pos_v'][n]
                         pos_ph = act_saved[f'layer{layer_id}']['pos_ph'][n]
                         neg_v  = act_saved[f'layer{layer_id}']['neg_v'][n]
                         neg_pv = act_saved[f'layer{layer_id}']['neg_pv'][n]
