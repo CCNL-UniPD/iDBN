@@ -379,7 +379,7 @@ class DBN(torch.nn.Module):
                 
                 for n in indices:
                     
-                    h = act_saved[f'layer{layer_id_true}']['pos_h'][n].clone()
+                    h = act_saved[f'layer{layer_id_true}']['pos_ph'][n].clone()
                     p_v, v = self.sample(self.network[layer_id_true]['W'].t(), 
                                          self.network[layer_id_true]['a'], h)
                     act_saved[f'layer{layer_id_true}']['neg_v'][n]  = v    # negative v
