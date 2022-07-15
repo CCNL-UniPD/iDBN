@@ -320,6 +320,7 @@ class DBN(torch.nn.Module):
         batch_size    = learning_params['BATCH_SIZE']
         
         activities = None
+        topdown_activities = None
         
         velocities = list()
         for layer in self.network:
@@ -337,16 +338,19 @@ class DBN(torch.nn.Module):
             act_saved = dict()
             for layer_id, layer in enumerate(self.network):
                 
-                N_in  = layer['W'].shape[0]
+                # N_in  = layer['W'].shape[0]
                 N_out = layer['W'].shape[1]
                 
-                act_saved.update({ f'layer{layer_id}' : {
-                        'pos_v'  : torch.zeros((train_batches, batch_size, N_in)),
-                        'pos_h'  : torch.zeros((train_batches, batch_size, N_out)),
-                        'pos_ph' : torch.zeros((train_batches, batch_size, N_out)),
-                        'neg_v'  : torch.zeros((train_batches, batch_size, N_in)),
-                        'neg_pv' : torch.zeros((train_batches, batch_size, N_in)) } 
-                    })
+                # act_saved.update({ f'layer{layer_id}' : {
+                #         'pos_v'  : torch.zeros((train_batches, batch_size, N_in)),
+                #         'pos_h'  : torch.zeros((train_batches, batch_size, N_out)),
+                #         'pos_ph' : torch.zeros((train_batches, batch_size, N_out)),
+                #         'neg_v'  : torch.zeros((train_batches, batch_size, N_in)),
+                #         'neg_pv' : torch.zeros((train_batches, batch_size, N_in)) } 
+                #     })
+                act_saved.update({f'layer{layer_id}' : torch.zeros((train_batches,
+                                                                    batch_size,
+                                                                    N_out))})
             #end
             
             indices = list(range(train_batches))
@@ -365,11 +369,10 @@ class DBN(torch.nn.Module):
                 for n in indices:
                     
                     v = data[n].clone()
-                    p_h, h = self.sample(layer['W'], layer['b'], v)
-                    activities[n] = p_h.clone()
-                    act_saved[f'layer{layer_id}']['pos_v'][n]  = v    # pos v
-                    act_saved[f'layer{layer_id}']['pos_h'][n]  = h    # pos h
-                    act_saved[f'layer{layer_id}']['pos_ph'][n] = p_h  # pos ph
+                    activities[n] = self.sample(layer['W'], layer['b'], v)[0]
+                    # act_saved[f'layer{layer_id}']['pos_v'][n]  = v    # pos v
+                    # act_saved[f'layer{layer_id}']['pos_h'][n]  = h    # pos h
+                    # act_saved[f'layer{layer_id}']['pos_ph'][n] = p_h  # pos ph
                 #end
             #end
             
@@ -377,13 +380,27 @@ class DBN(torch.nn.Module):
                 
                 layer_id_true = self.network.__len__() - layer_id - 1
                 
+                if layer_id_true == self.network.__len__() - 1:
+                    data = activities.clone()
+                else:
+                    data = topdown_activities.clone()
+                #end
+                
+                N_in = self.network[layer_id_true]['W'].shape[0]
+                topdown_activities = torch.zeros((train_batches, batch_size, N_in))
+                
                 for n in indices:
                     
-                    h = act_saved[f'layer{layer_id_true}']['pos_ph'][n].clone()
-                    p_v, v = self.sample(self.network[layer_id_true]['W'].t(), 
-                                         self.network[layer_id_true]['a'], h)
-                    act_saved[f'layer{layer_id_true}']['neg_v'][n]  = v    # negative v
-                    act_saved[f'layer{layer_id_true}']['neg_pv'][n] = p_v  # negative pv
+                    topdown_activities[n] = self.sample(self.network[layer_id_true]['W'].t(),
+                                                        self.network[layer_id_true]['a'], 
+                                                        data[n])[0]
+                    act_saved[f'layer{layer_id_true}'][n] = data[n]
+                    
+                    # h = act_saved[f'layer{layer_id_true}']['pos_h'][n].clone()
+                    # p_v, v = self.sample(self.network[layer_id_true]['W'].t(), 
+                    #                      self.network[layer_id_true]['a'], h)
+                    # act_saved[f'layer{layer_id_true}']['neg_v'][n]  = v    # negative v
+                    # act_saved[f'layer{layer_id_true}']['neg_pv'][n] = p_v  # negative pv
                 #end
             #end
             
@@ -414,13 +431,16 @@ class DBN(torch.nn.Module):
                         tlayer.set_description(f'Layer {layer_id}')
                         batch_size = data[n].shape[0]
                         
-                        pos_ph = self.sample(W, b, data[n].clone())[0]
+                        pos_v = data[n].clone()
+                        pos_ph, ph = self.sample(W, b, data[n].clone())
                         activities[n] = pos_ph.clone()
-                        pos_v  = act_saved[f'layer{layer_id}']['pos_v'][n]
+                        # pos_v  = act_saved[f'layer{layer_id}']['pos_v'][n]
                         # pos_ph = act_saved[f'layer{layer_id}']['pos_ph'][n]
-                        neg_v  = act_saved[f'layer{layer_id}']['neg_v'][n]
-                        neg_pv = act_saved[f'layer{layer_id}']['neg_pv'][n]
+                        # neg_v  = act_saved[f'layer{layer_id}']['neg_v'][n]
+                        # neg_pv = act_saved[f'layer{layer_id}']['neg_pv'][n]
+                        hidden_topdown = act_saved[f'layer{layer_id}'][n]
                         
+                        neg_pv, neg_v = self.sample(W.t(), a, hidden_topdown)
                         neg_ph, neg_h = self.sample(W, b, neg_v)
                         
                         pos_dW = torch.matmul(pos_v.t(), pos_ph).div(batch_size)
