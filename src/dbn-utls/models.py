@@ -397,12 +397,6 @@ class DBN(torch.nn.Module):
                 
                 print(f'Layer {layer_id}')
                 
-                if layer_id == 0:
-                    data = train_data.clone()
-                else:
-                    data = activities.clone()
-                #end
-                
                 N_out = layer['W'].shape[1]
                 activities = torch.zeros(train_batches, batch_size, N_out)
                 
@@ -420,7 +414,7 @@ class DBN(torch.nn.Module):
                         tlayer.set_description(f'Layer {layer_id}')
                         batch_size = data[n].shape[0]
                         
-                        pos_v  = data[n].clone() #act_saved[f'layer{layer_id}']['pos_v'][n]
+                        pos_v  = act_saved[f'layer{layer_id}']['pos_v'][n]
                         pos_ph = act_saved[f'layer{layer_id}']['pos_ph'][n]
                         neg_v  = act_saved[f'layer{layer_id}']['neg_v'][n]
                         neg_pv = act_saved[f'layer{layer_id}']['neg_pv'][n]
