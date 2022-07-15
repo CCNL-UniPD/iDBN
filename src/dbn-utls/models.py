@@ -366,10 +366,10 @@ class DBN(torch.nn.Module):
                     
                     v = data[n].clone()
                     p_h, h = self.sample(layer['W'], layer['b'], v)
+                    activities[n] = p_h.clone()
                     act_saved[f'layer{layer_id}']['pos_v'][n]  = v    # pos v
                     act_saved[f'layer{layer_id}']['pos_h'][n]  = h    # pos h
                     act_saved[f'layer{layer_id}']['pos_ph'][n] = p_h  # pos ph
-                    activities[n] = p_h.clone()
                 #end
             #end
             
