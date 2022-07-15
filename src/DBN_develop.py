@@ -134,6 +134,8 @@ for run in range(RUNS):
                             LPARAMS, readout = READOUT,
                             num_discr = NUM_DISCR
         )
+    elif ALG_NAME == 'f':
+        dbn.train_fullstack(train_dataset, test_dataset, LPARAMS)
     #end
     
     loss_metrics[run,:,:] = dbn.loss_profile

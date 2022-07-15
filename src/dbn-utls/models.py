@@ -86,8 +86,9 @@ class DBN(torch.nn.Module):
                         
                         pos_v = data[n]
                         pos_ph, pos_h = self.sample(W, b, pos_v)
-                        neg_pv, neg_v = self.sample(W.t(), a, pos_ph)
-                        neg_ph, neg_h = self.sample(W, b, neg_v)
+                        # neg_pv, neg_v = self.sample(W.t(), a, pos_ph)
+                        # neg_ph, neg_h = self.sample(W, b, neg_v)
+                        neg_ph, neg_v, neg_pv = self.Gibbs_sampling(pos_v, W, a, b)
                         
                         pos_dW = torch.matmul(pos_v.t(), pos_ph).div(batch_size)
                         pos_da = pos_v.mean(dim = 0)
@@ -111,11 +112,10 @@ class DBN(torch.nn.Module):
                         a = a + da
                         b = b + db
                         
-                        mse = (pos_v - neg_pv).pow(2).mean() #.sum(dim = 1).mean(dim = 0)
+                        mse = (pos_v - neg_pv).pow(2).mean() 
                         train_loss += mse
                         
                         activities[n], _ = self.sample(W, b, pos_v)
-                        #end
                         
                         tepoch.set_postfix(MSE = train_loss.div(idx + 1).item())
                     #end batches
@@ -220,9 +220,6 @@ class DBN(torch.nn.Module):
                         activities[n], _ = self.sample(W, b, data[n].clone())
                         
                         pos_v = data[n].clone()
-                        # pos_ph, pos_h = self.sample(W, b, pos_v)
-                        # neg_pv, neg_v = self.sample(W.t(), a, pos_ph)
-                        # neg_ph, neg_h = self.sample(W, b, neg_v)
                         pos_ph, pos_h = self.sample(W, b, pos_v)
                         neg_ph, neg_v, neg_pv = self.Gibbs_sampling(pos_v, W, a, b)
                         
@@ -248,7 +245,7 @@ class DBN(torch.nn.Module):
                         a = a + da; velocities[layer_id]['da'] = da.clone()
                         b = b + db; velocities[layer_id]['db'] = db.clone()
                         
-                        mse = (pos_v - neg_pv).pow(2).mean() #.sum(dim = 1).mean(dim = 0)
+                        mse = (pos_v - neg_pv).pow(2).mean()
                         train_loss += mse
                         
                         tlayer.set_postfix(MSE = train_loss.div(idx + 1).item())
@@ -308,6 +305,119 @@ class DBN(torch.nn.Module):
             
         #end FOR epochs
     #end
+    
+    
+    def train_fullstack(self, train_dataset, test_dataset, learning_params):
+        
+        momenta = [ learning_params['INIT_MOMENTUM'], 
+                    learning_params['FINAL_MOMENTUM'] ]
+        lr = learning_params['LEARNING_RATE']
+        penalty = learning_params['WEIGHT_PENALTY']
+        
+        train_data = train_dataset['data']
+        train_lbls = train_dataset['labels']
+        test_data  = test_dataset['data']
+        test_lbls  = test_dataset['labels']
+        
+        train_batches = train_data.shape[0]
+        test_batches  = test_data.shape[0]
+        batch_size    = learning_params['BATCH_SIZE']
+        
+        velocities = list()
+        for layer in self.network:
+            velocities.append({
+                'dW' : torch.zeros_like(layer['W']),
+                'da' : torch.zeros_like(layer['a']),
+                'db' : torch.zeros_like(layer['b'])
+            })
+        #end
+        
+        for epoch in range(self.epochs):
+            
+            print(f'Epoch {epoch:03d}')
+            
+            indices = list(range(train_batches))
+            train_loss = 0.
+            
+            random.shuffle(indices)
+            with tqdm(indices, unit = 'Batch') as tlayer:
+                for idx, n in enumerate(tlayer):
+                    
+                    act_saved = {
+                        'layer0' : list(),
+                        'layer1' : list(),
+                        'layer2' : list()
+                    }
+                    
+                    v = train_data[n].clone()
+                    
+                    for layer_id, layer in enumerate(self.network):
+                        
+                        p_h, h = self.sample(layer['W'], layer['b'], v)
+                        act_saved[f'layer{layer_id}'].append(v)   # pos v
+                        act_saved[f'layer{layer_id}'].append(h)   # pos h
+                        act_saved[f'layer{layer_id}'].append(p_h) # pos ph
+                        v = h.clone()
+                    #end
+                    
+                    for layer_id in range(self.network.__len__()):
+                        
+                        layer_id_true = self.network.__len__() - layer_id - 1
+                        h = act_saved[f'layer{layer_id_true}'][1].clone()
+                        p_v, v = self.sample(self.network[layer_id_true]['W'].t(), 
+                                             self.network[layer_id_true]['a'], h)
+                        act_saved[f'layer{layer_id_true}'].append(v)    # negative v
+                        act_saved[f'layer{layer_id_true}'].append(p_v)  # negative pv
+                        h = v.clone()
+                    #end
+                    
+                    for layer_id, layer in enumerate(self.network):
+                        
+                        W = layer['W'].clone(); dW = velocities[layer_id]['dW'].clone()
+                        a = layer['a'].clone(); da = velocities[layer_id]['da'].clone()
+                        b = layer['b'].clone(); db = velocities[layer_id]['db'].clone()
+                        
+                        pos_v, pos_h, pos_ph, neg_v, neg_pv = act_saved[f'layer{layer_id}']
+                        neg_ph, neg_h = self.sample(W, b, neg_v)
+                        
+                        pos_dW = torch.matmul(pos_v.t(), pos_ph).div(batch_size)
+                        pos_da = pos_v.mean(dim = 0)
+                        pos_db = pos_ph.mean(dim = 0)
+                        
+                        neg_dW = torch.matmul(neg_v.t(), neg_ph).div(batch_size)
+                        neg_da = neg_v.mean(dim = 0)
+                        neg_db = neg_ph.mean(dim = 0)
+                        
+                        if epoch >= 5:
+                            momentum = momenta[0]
+                        else:
+                            momentum = momenta[1]
+                        #end
+                        
+                        dW = momentum * dW + lr * ((pos_dW - neg_dW) - penalty * W)
+                        da = momentum * da + lr * (pos_da - neg_da)
+                        db = momentum * db + lr * (pos_db - neg_db)
+                        
+                        W = W + dW; velocities[layer_id]['dW'] = dW.clone()
+                        a = a + da; velocities[layer_id]['da'] = da.clone()
+                        b = b + db; velocities[layer_id]['db'] = db.clone()
+                        
+                        mse = (pos_v - neg_pv).pow(2).mean()
+                        train_loss += mse
+                        
+                        tlayer.set_postfix(MSE = train_loss.div(idx + 1).item())
+                        
+                        self.network[layer_id]['W'] = W.clone()
+                        self.network[layer_id]['a'] = a.clone()
+                        self.network[layer_id]['b'] = b.clone()
+                    #end
+                
+                #end BATCHES
+            #end WITH
+            
+        #end EPOCHS
+    #end
+    
     
     def test(self, train_dataset, test_dataset):
         
@@ -381,14 +491,16 @@ class DBN(torch.nn.Module):
     #end
     
     def Gibbs_sampling(self, pos_v, W, a, b):
+                
+        pos_ph, pos_h = self.sample(W, b, pos_v)
+        neg_pv, neg_v = self.sample(W.t(), a, pos_h)
+        neg_ph, neg_h = self.sample(W, b, neg_v)
         
-        v = pos_v.clone()
+        # p_h, h = self.sample(W, b, v)
+        # p_v, v = self.sample(W.t(), a, h)
+        # p_h, h = self.sample(W, b, v)
         
-        p_h, h = self.sample(W, b, v)
-        p_v, v = self.sample(W.t(), a, h)
-        p_h, h = self.sample(W, b, v)
-        
-        return p_h, v, p_v
+        return neg_ph, neg_v, neg_pv
     #end
     
     def get_readout(self, x_train, x_test, y_train, y_test):
