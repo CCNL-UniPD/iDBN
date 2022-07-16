@@ -102,6 +102,7 @@ psycurves    = list()
 # Runs
 for run in range(RUNS):
     
+    print(f'\n\nRun {run}\n')
     if DATASET_ID == 'MNIST':
         model = [
             {'W' : 0.01 * torch.nn.init.normal_(torch.empty(784, 500), mean = 0, std = 1),  
