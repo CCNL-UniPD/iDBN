@@ -121,7 +121,7 @@ class DBN(torch.nn.Module):
                     #end batches
                 #end with batches
                 
-                t_activities = self.sample(W, b, t_data)
+                t_activities = self.sample(W, b, t_data)[0]
                 
                 if readout:
                     
@@ -338,16 +338,7 @@ class DBN(torch.nn.Module):
             act_saved = dict()
             for layer_id, layer in enumerate(self.network):
                 
-                # N_in  = layer['W'].shape[0]
                 N_out = layer['W'].shape[1]
-                
-                # act_saved.update({ f'layer{layer_id}' : {
-                #         'pos_v'  : torch.zeros((train_batches, batch_size, N_in)),
-                #         'pos_h'  : torch.zeros((train_batches, batch_size, N_out)),
-                #         'pos_ph' : torch.zeros((train_batches, batch_size, N_out)),
-                #         'neg_v'  : torch.zeros((train_batches, batch_size, N_in)),
-                #         'neg_pv' : torch.zeros((train_batches, batch_size, N_in)) } 
-                #     })
                 act_saved.update({f'layer{layer_id}' : torch.zeros((train_batches,
                                                                     batch_size,
                                                                     N_out))})
@@ -370,9 +361,6 @@ class DBN(torch.nn.Module):
                     
                     v = data[n].clone()
                     activities[n] = self.sample(layer['W'], layer['b'], v)[0]
-                    # act_saved[f'layer{layer_id}']['pos_v'][n]  = v    # pos v
-                    # act_saved[f'layer{layer_id}']['pos_h'][n]  = h    # pos h
-                    # act_saved[f'layer{layer_id}']['pos_ph'][n] = p_h  # pos ph
                 #end
             #end
             
@@ -395,12 +383,6 @@ class DBN(torch.nn.Module):
                                                         self.network[layer_id_true]['a'], 
                                                         data[n])[0]
                     act_saved[f'layer{layer_id_true}'][n] = data[n]
-                    
-                    # h = act_saved[f'layer{layer_id_true}']['pos_h'][n].clone()
-                    # p_v, v = self.sample(self.network[layer_id_true]['W'].t(), 
-                    #                      self.network[layer_id_true]['a'], h)
-                    # act_saved[f'layer{layer_id_true}']['neg_v'][n]  = v    # negative v
-                    # act_saved[f'layer{layer_id_true}']['neg_pv'][n] = p_v  # negative pv
                 #end
             #end
             
@@ -434,10 +416,6 @@ class DBN(torch.nn.Module):
                         pos_v = data[n].clone()
                         pos_ph, ph = self.sample(W, b, data[n].clone())
                         activities[n] = pos_ph.clone()
-                        # pos_v  = act_saved[f'layer{layer_id}']['pos_v'][n]
-                        # pos_ph = act_saved[f'layer{layer_id}']['pos_ph'][n]
-                        # neg_v  = act_saved[f'layer{layer_id}']['neg_v'][n]
-                        # neg_pv = act_saved[f'layer{layer_id}']['neg_pv'][n]
                         hidden_topdown = act_saved[f'layer{layer_id}'][n]
                         
                         neg_pv, neg_v = self.sample(W.t(), a, hidden_topdown)
