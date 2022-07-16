@@ -9,7 +9,7 @@ import numpy as np
 import pickle
 import json
 
-from models import DBN
+import dbns
 
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.getcwd(), 'config.env'))
@@ -52,6 +52,7 @@ READOUT        = CPARAMS['READOUT']
 RUNS           = CPARAMS['RUNS']
 LAYERS         = CPARAMS['LAYERS']
 NUM_DISCR      = CPARAMS['NUM_DISCR']
+INIT_SCHEME    = CPARAMS['INIT_SCHEME']
 
 if DATASET_ID == 'MNIST' and NUM_DISCR:
     raise ValueError('No numerosity discrimination with MNIST')
@@ -84,15 +85,18 @@ train_dataset = pickle.load(open(os.path.join(PATH_DATA, 'train_dataset.pkl'), '
 test_dataset  = pickle.load(open(os.path.join(PATH_DATA, 'test_dataset.pkl'),  'rb'))
 
 # Converto to cuda, if available
-train_dataset['data'] = train_dataset['data'].to(DEVICE)
-test_dataset['data']  = test_dataset['data'].to(DEVICE)
-train_dataset['labels'] = train_dataset['labels'].to(DEVICE)
-test_dataset['labels']  = test_dataset['labels'].to(DEVICE)
+Xtrain = train_dataset['data'].to(DEVICE)
+Ytrain = train_dataset['labels'].to(DEVICE)
+Xtest  = test_dataset['data'].to(DEVICE)
+Ytest  = test_dataset['labels'].to(DEVICE)
 
 # -----------------------------------------------------
 # Initialize performance metrics data structures
 loss_metrics = np.zeros((RUNS, EPOCHS, LAYERS))
 acc_metrics  = np.zeros((RUNS, EPOCHS, LAYERS))
+test_repr    = np.zeros((RUNS))
+test_reco    = np.zeros((RUNS))
+test_deno    = np.zeros((RUNS))
 Weber_fracs  = list()
 psycurves    = list()
 # -----------------------------------------------------
@@ -102,7 +106,7 @@ psycurves    = list()
 # Runs
 for run in range(RUNS):
     
-    print(f'\n\nRun {run}\n')
+    print(f'\n\n---Run {run}\n')
     if DATASET_ID == 'MNIST':
         model = [
             {'W' : 0.01 * torch.nn.init.normal_(torch.empty(784, 500), mean = 0, std = 1),  
@@ -127,32 +131,30 @@ for run in range(RUNS):
         ]
     #end
     
-    dbn = DBN(model, ALG_NAME, PATH_MODEL, EPOCHS).to(DEVICE)
     
     if ALG_NAME == 'g':
-        dbn.train_greedy(train_dataset, test_dataset,
-                          LPARAMS, readout = READOUT
+        dbn = dbns.gDBN(ALG_NAME, DATASET_ID, INIT_SCHEME, PATH_MODEL, EPOCHS).to(DEVICE)
+        dbn.train(Xtrain, Xtest, Ytrain, Ytest, LPARAMS, readout = READOUT
         )
     elif ALG_NAME == 'i':
-        dbn.train_iterative(train_dataset, test_dataset,
-                            LPARAMS, readout = READOUT,
-                            num_discr = NUM_DISCR
-        )
+        dbn = dbns.iDBN(ALG_NAME, DATASET_ID, INIT_SCHEME, PATH_MODEL, EPOCHS).to(DEVICE)
+        dbn.train(Xtrain, Xtest, Ytrain, Ytest, LPARAMS, readout = READOUT, num_discr = NUM_DISCR)
     elif ALG_NAME == 'f':
         dbn.train_fullstack(train_dataset, test_dataset, LPARAMS)
     #end
     
-    loss_metrics[run,:,:] = dbn.loss_profile
-    acc_metrics[run,:,:] = dbn.acc_profile
+    for layer_id, rbm in enumerate(dbn.rbm_layers):
+        loss_metrics[run, :, layer_id] = rbm.loss_profile
+        acc_metrics[run, :, layer_id] = rbm.acc_profile
+    #end
     
     if NUM_DISCR:
         Weber_fracs.append(dbn.Weber_fracs) # list of pd.DataFrame
         psycurves.append(dbn.psycurves)     # list of dicts with ratios and percs
     #end
     
-    dbn.test(test_dataset)
-    
-    dbn.save(name = f'run{run}')
+    test_repr[run] = dbn.test(Xtest, Ytest)[0]
+    dbn.save(run = run)
 #end
 # -----------------------------------------------------
 
@@ -164,6 +166,10 @@ f.close()
 
 with open(os.path.join(PATH_MODEL, 'acc_metrics.pkl'), 'wb') as f:
     pickle.dump(acc_metrics, f)
+f.close()
+
+with open(os.path.join(PATH_MODEL, 'test_errors.pkl'), 'wb') as f:
+    pickle.dump({'repr' : test_repr, 'reco' : test_reco, 'deno' : test_deno}, f)
 f.close()
 
 if NUM_DISCR:
