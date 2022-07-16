@@ -213,9 +213,6 @@ class DBN(torch.nn.Module):
                 #     _Xtest[n,:,:] = self.sample(W, b, Xtest[n,:,:])
                 # #end
                 
-                if layer_id == 0:
-                    print()
-                
                 _Xtest, _ = self.sample(W, b, Xtest)
                 
                 indices = list(range(train_batches))
@@ -269,7 +266,7 @@ class DBN(torch.nn.Module):
                     
                     if (epoch + 1) % 1 == 0:
                         
-                        readout_accuracy = self.get_readout(Xtrain, Xtest,
+                        readout_accuracy = self.get_readout(_Xtrain, _Xtest,
                                                             Ytrain, Ytest)
                         self.acc_profile[epoch, layer_id] = readout_accuracy
                         print(f'Readout accuracy = {readout_accuracy*100:.2f}')
