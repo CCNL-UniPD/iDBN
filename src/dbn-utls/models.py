@@ -209,7 +209,7 @@ class DBN(torch.nn.Module):
                         # Propagation of activity before parameters update!!!
                         _Xtrain[n,:,:], _ = self.sample(W, b, pos_v)
                         
-                        pos_ph, pos_h = self.sample(W, a, pos_v)
+                        pos_ph, pos_h = self.sample(W, b, pos_v)
                         neg_ph, neg_v, neg_pv = self.Gibbs_sampling(pos_v, W, a, b)
                         
                         pos_dW = torch.matmul(pos_v.t(), pos_ph).div(batch_size)
