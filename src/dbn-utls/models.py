@@ -194,9 +194,9 @@ class DBN(torch.nn.Module):
                 indices = list(range(train_batches))
                 train_loss = 0.
                 
-                W = layer['W'];  dW = velocities[layer_id]['dW']
-                a = layer['a'];  da = velocities[layer_id]['da']
-                b = layer['b'];  db = velocities[layer_id]['db']
+                W = layer['W'];  dW = velocities[layer_id]['dW'].clone()
+                a = layer['a'];  da = velocities[layer_id]['da'].clone()
+                b = layer['b'];  db = velocities[layer_id]['db'].clone()
                 
                 random.shuffle(indices)
                 with tqdm(indices, unit = 'Batch') as tlayer:
@@ -230,14 +230,10 @@ class DBN(torch.nn.Module):
                         da = momentum * da + lr * (pos_da - neg_da)
                         db = momentum * db + lr * (pos_db - neg_db)
                         
-                        self.network[layer_id]['W'] = W + dW
-                        self.network[layer_id]['a'] = a + da
-                        self.network[layer_id]['b'] = b + db
-                        
-                        velocities[layer_id]['dW'] = dW
-                        velocities[layer_id]['db'] = db
-                        velocities[layer_id]['da'] = da
-                        
+                        velocities[layer_id]['dW'] = dW.clone()
+                        velocities[layer_id]['db'] = db.clone()
+                        velocities[layer_id]['da'] = da.clone()
+                                                
                         mse = (pos_v - neg_pv).pow(2).mean()
                         train_loss += mse
                         
@@ -245,6 +241,10 @@ class DBN(torch.nn.Module):
                         
                     #end FOR batches
                 #end WITH batches
+                
+                self.network[layer_id]['W'] = W + dW
+                self.network[layer_id]['a'] = a + da
+                self.network[layer_id]['b'] = b + db
                 
                 if readout:
                     
