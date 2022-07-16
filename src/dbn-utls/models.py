@@ -185,7 +185,7 @@ class DBN(torch.nn.Module):
             
             for layer_id, layer in enumerate(self.network):
                 
-                N_out = layer['W'].shape[1]
+                N_out = layer['W'].shape[0]
                 
                 _Xtrain = torch.zeros((train_batches, batch_size, N_out))
                 _Xtest  = torch.zeros((test_batches, batch_size, N_out))
@@ -212,11 +212,11 @@ class DBN(torch.nn.Module):
                         pos_ph, pos_h = self.sample(W, b, pos_v)
                         neg_ph, neg_v, neg_pv = self.Gibbs_sampling(pos_v, W, a, b)
                         
-                        pos_dW = torch.matmul(pos_v.t(), pos_ph).div(batch_size)
+                        pos_dW = torch.matmul(pos_v.t(), pos_ph).div(batch_size).t()
                         pos_da = pos_v.mean(dim = 0)
                         pos_db = pos_ph.mean(dim = 0)
                         
-                        neg_dW = torch.matmul(neg_v.t(), neg_ph).div(batch_size)
+                        neg_dW = torch.matmul(neg_v.t(), neg_ph).div(batch_size).t()
                         neg_da = neg_v.mean(dim = 0)
                         neg_db = neg_ph.mean(dim = 0)
                         
@@ -523,7 +523,8 @@ class DBN(torch.nn.Module):
     
     def sample(self, weight, bias, activity):
         
-        probabilities = torch.sigmoid( torch.matmul(activity, weight).add(bias) )
+        # probabilities = torch.sigmoid( torch.matmul(activity, weight).add(bias) )
+        probabilities = torch.sigmoid(torch.matmul(activity, weight.t()).add(bias))
         activities = torch.bernoulli(probabilities)
         return probabilities, activities
     #end
