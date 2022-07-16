@@ -173,18 +173,18 @@ class DBN(torch.nn.Module):
         activities = None
         t_activities = None
         
-        velocities = list()
-        for layer in self.network:
-            velocities.append({
-                'dW' : torch.zeros_like(layer['W']),
-                'da' : torch.zeros_like(layer['a']),
-                'db' : torch.zeros_like(layer['b'])
-            })
-        #end
-        
         for epoch in range(self.epochs):
             
             print(f'Epoch {epoch:03d}')
+            
+            velocities = list()
+            for layer in self.network:
+                velocities.append({
+                    'dW' : torch.zeros_like(layer['W']),
+                    'da' : torch.zeros_like(layer['a']),
+                    'db' : torch.zeros_like(layer['b'])
+                })
+            #end
             
             for layer_id, layer in enumerate(self.network):
                 
