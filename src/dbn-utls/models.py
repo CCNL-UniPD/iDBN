@@ -230,9 +230,9 @@ class DBN(torch.nn.Module):
                         da = momentum * da + lr * (pos_da - neg_da)
                         db = momentum * db + lr * (pos_db - neg_db)
                         
-                        velocities[layer_id]['dW'] = dW.clone()
-                        velocities[layer_id]['db'] = db.clone()
-                        velocities[layer_id]['da'] = da.clone()
+                        W = W + dW
+                        a = a + da
+                        b = b + db
                                                 
                         mse = (pos_v - neg_pv).pow(2).mean()
                         train_loss += mse
@@ -242,9 +242,13 @@ class DBN(torch.nn.Module):
                     #end FOR batches
                 #end WITH batches
                 
-                self.network[layer_id]['W'] = W + dW
-                self.network[layer_id]['a'] = a + da
-                self.network[layer_id]['b'] = b + db
+                velocities[layer_id]['dW'] = dW.clone()
+                velocities[layer_id]['db'] = db.clone()
+                velocities[layer_id]['da'] = da.clone()
+                
+                self.network[layer_id]['W'] = W.clone()
+                self.network[layer_id]['a'] = a.clone()
+                self.network[layer_id]['b'] = b.clone()
                 
                 if readout:
                     
