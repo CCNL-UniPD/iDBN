@@ -164,21 +164,21 @@ class DBN(torch.nn.Module):
         # activities = None
         # t_activities = None
         
-        velocities = list()
-        for layer in self.network:
-            velocities.append({
-                'dW' : torch.zeros_like(layer['W']),
-                'da' : torch.zeros_like(layer['a']),
-                'db' : torch.zeros_like(layer['b'])
-            })
-        #end
-        
         for epoch in range(self.epochs):
             
             Xtrain = train_dataset['data']
             Ytrain = train_dataset['labels']
             Xtest  = test_dataset['data']
             Ytest  = test_dataset['labels']
+            
+            velocities = list()
+            for layer in self.network:
+                velocities.append({
+                    'dW' : torch.zeros_like(layer['W']),
+                    'da' : torch.zeros_like(layer['a']),
+                    'db' : torch.zeros_like(layer['b'])
+                })
+            #end
             
             train_batches = Xtrain.shape[0]
             test_batches  = Xtest.shape[0]
