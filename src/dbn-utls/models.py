@@ -205,15 +205,15 @@ class DBN(torch.nn.Module):
                 # t_activities = torch.zeros(test_batches, batch_size, N_out)
                 # t_activities, _ = self.sample(layer['W'], layer['b'], t_data)
                 
-                W = layer['W'].clone(); dW = velocities[layer_id]['dW'].clone()
-                a = layer['a'].clone(); da = velocities[layer_id]['da'].clone()
-                b = layer['b'].clone(); db = velocities[layer_id]['db'].clone()
+                # W = layer['W'].clone(); dW = velocities[layer_id]['dW'].clone()
+                # a = layer['a'].clone(); da = velocities[layer_id]['da'].clone()
+                # b = layer['b'].clone(); db = velocities[layer_id]['db'].clone()
                 
                 # for n in range(test_batches.__len__()):
                 #     _Xtest[n,:,:] = self.sample(W, b, Xtest[n,:,:])
                 # #end
                 
-                _Xtest, _ = self.sample(W, b, Xtest)
+                _Xtest, _ = self.sample(layer['W'], layer['b'], Xtest)
                 
                 indices = list(range(train_batches))
                 train_loss = 0.
@@ -227,10 +227,11 @@ class DBN(torch.nn.Module):
                         batch_size = pos_v.shape[0]
                         
                         # Propagation of activity before parameters update!!!
-                        _Xtrain[n,:,:], _ = self.sample(W, b, pos_v)
+                        _Xtrain[n,:,:], _ = self.sample(layer['W'], layer['b'], pos_v)
                         
-                        pos_ph, pos_h = self.sample(W, b, pos_v)
-                        neg_ph, neg_v, neg_pv = self.Gibbs_sampling(pos_v, W, a, b)
+                        pos_ph, pos_h = self.sample(layer['W'], layer['b'], pos_v)
+                        neg_ph, neg_v, neg_pv = self.Gibbs_sampling(pos_v, 
+                                                layer['W'], layer['a'], layer['b'])
                         
                         pos_dW = torch.matmul(pos_v.t(), pos_ph).div(batch_size)
                         pos_da = pos_v.mean(dim = 0)
@@ -246,13 +247,16 @@ class DBN(torch.nn.Module):
                             momentum = momenta[1]
                         #end
                         
-                        dW = momentum * dW + lr * ((pos_dW - neg_dW) - penalty * W)
-                        da = momentum * da + lr * (pos_da - neg_da)
-                        db = momentum * db + lr * (pos_db - neg_db)
+                        velocities[layer_id]['dW'] = momentum * velocities[layer_id]['dW'] + \
+                            lr * ((pos_dW - neg_dW) - penalty * layer['W'])
+                        velocities[layer_id]['da'] = momentum * velocities[layer_id]['da'] +  \
+                            lr * (pos_da - neg_da)
+                        velocities[layer_id]['db'] = momentum * velocities[layer_id]['db'] + \
+                            lr * (pos_db - neg_db)
                         
-                        W = W + dW; velocities[layer_id]['dW'] = dW.clone()
-                        a = a + da; velocities[layer_id]['da'] = da.clone()
-                        b = b + db; velocities[layer_id]['db'] = db.clone()
+                        layer['W'] = layer['W'] + velocities[layer_id]['dW']
+                        layer['a'] = layer['a'] + velocities[layer_id]['da']
+                        layer['b'] = layer['b'] + velocities[layer_id]['db']
                         
                         mse = (pos_v - neg_pv).pow(2).mean()
                         train_loss += mse
@@ -273,9 +277,9 @@ class DBN(torch.nn.Module):
                     #end
                 #end
                 
-                self.network[layer_id]['W'] = W.clone()
-                self.network[layer_id]['a'] = a.clone()
-                self.network[layer_id]['b'] = b.clone()
+                # self.network[layer_id]['W'] = W.clone()
+                # self.network[layer_id]['a'] = a.clone()
+                # self.network[layer_id]['b'] = b.clone()
                 
                 self.loss_profile[epoch, layer_id] = train_loss.div(pos_v.__len__()).item()
                 
