@@ -105,13 +105,13 @@ for run in range(RUNS):
     print(f'\n\nRun {run}\n')
     if DATASET_ID == 'MNIST':
         model = [
-            {'W' : 0.01 * torch.nn.init.normal_(torch.empty(500, 784), mean = 0, std = 1),  
+            {'W' : 0.01 * torch.nn.init.normal_(torch.empty(784, 500), mean = 0, std = 1),  
              'a' : torch.zeros((1, 784)),  
              'b' : torch.zeros((1, 500))},
             {'W' : 0.01 * torch.nn.init.normal_(torch.empty(500, 500), mean = 0, std = 1),  
              'a' : torch.zeros((1, 500)),  
              'b' : torch.zeros((1, 500))},
-            {'W' : 0.01 * torch.nn.init.normal_(torch.empty(2000, 500), mean = 0, std = 1), 
+            {'W' : 0.01 * torch.nn.init.normal_(torch.empty(500, 2000), mean = 0, std = 1), 
              'a' : torch.zeros((1, 500)),  
              'b' : torch.zeros((1, 2000))}
         ]
@@ -131,7 +131,7 @@ for run in range(RUNS):
     
     if ALG_NAME == 'g':
         dbn.train_greedy(train_dataset, test_dataset,
-                         LPARAMS, readout = READOUT
+                          LPARAMS, readout = READOUT
         )
     elif ALG_NAME == 'i':
         dbn.train_iterative(train_dataset, test_dataset,
@@ -149,6 +149,8 @@ for run in range(RUNS):
         Weber_fracs.append(dbn.Weber_fracs) # list of pd.DataFrame
         psycurves.append(dbn.psycurves)     # list of dicts with ratios and percs
     #end
+    
+    dbn.test(test_dataset)
     
     dbn.save(name = f'run{run}')
 #end

@@ -24,6 +24,7 @@ class DBN(torch.nn.Module):
         self.acc_profile = np.ones((epochs, network.__len__())) * np.nan
         self.path_model = path_model
         self.epochs = epochs
+        self.loss_fn = torch.nn.MSELoss(reduction = 'mean')
         
         for layer in self.network:
             layer['W'].to(DEVICE)
@@ -185,7 +186,7 @@ class DBN(torch.nn.Module):
             
             for layer_id, layer in enumerate(self.network):
                 
-                N_out = layer['W'].shape[0]
+                N_out = layer['W'].shape[1]
                 
                 _Xtrain = torch.zeros((train_batches, batch_size, N_out))
                 _Xtest  = torch.zeros((test_batches, batch_size, N_out))
@@ -212,11 +213,11 @@ class DBN(torch.nn.Module):
                         pos_ph, pos_h = self.sample(W, b, pos_v)
                         neg_ph, neg_v, neg_pv = self.Gibbs_sampling(pos_v, W, a, b)
                         
-                        pos_dW = torch.matmul(pos_v.t(), pos_ph).div(batch_size).t()
+                        pos_dW = torch.matmul(pos_v.t(), pos_ph).div(batch_size)
                         pos_da = pos_v.mean(dim = 0)
                         pos_db = pos_ph.mean(dim = 0)
                         
-                        neg_dW = torch.matmul(neg_v.t(), neg_ph).div(batch_size).t()
+                        neg_dW = torch.matmul(neg_v.t(), neg_ph).div(batch_size)
                         neg_da = neg_v.mean(dim = 0)
                         neg_db = neg_ph.mean(dim = 0)
                         
@@ -233,8 +234,8 @@ class DBN(torch.nn.Module):
                         W = W + dW
                         a = a + da
                         b = b + db
-                                                
-                        mse = (pos_v - neg_pv).pow(2).mean()
+                        
+                        mse = self.loss_fn(pos_v, neg_pv)#(pos_v - neg_pv).pow(2).mean()
                         train_loss += mse
                         
                         tlayer.set_postfix(MSE = train_loss.div(idx + 1).item())
@@ -261,7 +262,7 @@ class DBN(torch.nn.Module):
                     #end
                 #end
                 
-                self.loss_profile[epoch, layer_id] = train_loss.div(pos_v.__len__()).item()
+                self.loss_profile[epoch, layer_id] = train_loss.div(Xtrain.shape[0]).item()
                 
                 Xtrain = _Xtrain.clone()
                 Xtest  = _Xtest.clone()
@@ -457,66 +458,36 @@ class DBN(torch.nn.Module):
     #end
     
     
-    def test(self, train_dataset, test_dataset):
+    def test(self, test_dataset):
         
-        train_data = train_dataset['data']
-        train_lbls = train_dataset['labels']
-        test_data  = test_dataset['data']
-        test_lbls  = test_dataset['labels']
+        Xtest  = test_dataset['data']
         
-        reconstructions = list()
-        activities = [None for i in range(train_data.__len__())]
-        t_activities = [None for i in range(test_data.__len__())]
+        reconstructions = torch.zeros_like(Xtest)
+        _Xtest = torch.zeros_like(Xtest)
         test_loss = 0.
         
-        for n, batch in enumerate(test_data):
+        for n in range(Xtest.shape[0]):
             
-            reconstruction = None
+            hidden = Xtest[n,:,:].clone()
             
             for layer_id, layer in enumerate(self.network):
                 
-                if layer_id == 0:
-                    data = batch.clone()
-                else:
-                    data = t_activities[n].clone()
-                #end
-                
-                t_activities[n], _ = self.sample(layer['W'], layer['b'], data)
+                hidden, _ = self.sample(layer['W'], layer['b'], hidden)
             #end
+            
+            reco = hidden.clone()
             
             for layer_id, layer in enumerate(reversed(self.network)):
                 
-                if layer_id == 0:
-                    data = t_activities[n].clone()
-                else:
-                    data = reconstruction.clone()
-                #end
-                
-                reconstruction, _ = self.sample(layer['W'].t(), layer['a'], data)
+                reco, _ = self.sample(layer['W'].t(), layer['a'], reco)
             #end
             
-            reconstructions.append(reconstruction)
-            test_loss += (batch - reconstruction).pow(2).sum(dim = 1).mean(dim = 0)
+            reconstructions[n,:,:] = reco
+            test_loss += (Xtest[n,:,:] - reco).pow(2).mean()
         #end
         
-        for n, batch in enumerate(train_data):
-            
-            for layer_id, layer in enumerate(self.network):
-                
-                if layer_id == 0:
-                    data = batch.clone()
-                else:
-                    data = activities[n].clone()
-                #end
-                
-                activities[n], _ = self.sample(layer['W'], layer['b'], data)
-            #end
-        #end
-        
-        readout_acc = self.get_readout(activities, t_activities, train_lbls, test_lbls)
-        test_loss = test_loss.div(test_data.__len__())
+        test_loss = test_loss.div(Xtest.shape[0])
         print(f'Test MSE = {test_loss:.4f}')
-        print(f'Test readout = {readout_acc}')
         
         return reconstructions
     #end
@@ -524,7 +495,7 @@ class DBN(torch.nn.Module):
     def sample(self, weight, bias, activity):
         
         # probabilities = torch.sigmoid( torch.matmul(activity, weight).add(bias) )
-        probabilities = torch.sigmoid(torch.matmul(activity, weight.t()).add(bias))
+        probabilities = torch.sigmoid(torch.matmul(activity, weight).add(bias))
         activities = torch.bernoulli(probabilities)
         return probabilities, activities
     #end
@@ -570,7 +541,7 @@ class DBN(torch.nn.Module):
             layer['b'].to(torch.device('cpu'))
         #end
         
-        torch.save(self, open(os.path.join(self.path_model, 
+        torch.save(self.to(torch.device('cpu')), open(os.path.join(self.path_model, 
                                            f'{name_save}_model.mdl'), 'wb'))
     #end
 #end
