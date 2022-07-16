@@ -105,13 +105,13 @@ for run in range(RUNS):
     print(f'\n\nRun {run}\n')
     if DATASET_ID == 'MNIST':
         model = [
-            {'W' : 0.01 * torch.nn.init.normal_(torch.empty(784, 500), mean = 0, std = 1),  
+            {'W' : 0.01 * torch.nn.init.normal_(torch.empty(500, 784), mean = 0, std = 1),  
              'a' : torch.zeros((1, 784)),  
              'b' : torch.zeros((1, 500))},
             {'W' : 0.01 * torch.nn.init.normal_(torch.empty(500, 500), mean = 0, std = 1),  
              'a' : torch.zeros((1, 500)),  
              'b' : torch.zeros((1, 500))},
-            {'W' : 0.01 * torch.nn.init.normal_(torch.empty(500, 2000), mean = 0, std = 1), 
+            {'W' : 0.01 * torch.nn.init.normal_(torch.empty(2000, 500), mean = 0, std = 1), 
              'a' : torch.zeros((1, 500)),  
              'b' : torch.zeros((1, 2000))}
         ]
