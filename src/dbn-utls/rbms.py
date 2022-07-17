@@ -139,15 +139,21 @@ class RBM(torch.nn.Module):
         return _Xtrain, _Xtest
     #end
     
-    def CD_params_update(self, pos_v, lparams):
+    def CD_params_update(self, pos_v, lparams, hidden_saved = None):
         
         momenta    = [lparams['INIT_MOMENTUM'], lparams['FINAL_MOMENTUM']]
         learn_rate = lparams['LEARNING_RATE']
         penalty    = lparams['WEIGHT_PENALTY']
         batch_size = lparams['BATCH_SIZE']
         
-        pos_ph, pos_h = self.forward(pos_v)
-        neg_ph, neg_v, neg_pv = self.Gibbs_sampling(pos_v)
+        if hidden_saved is None:
+            pos_ph, pos_h = self.forward(pos_v)
+            neg_ph, neg_v, neg_pv = self.Gibbs_sampling(pos_v)
+        else:
+            pos_h = self.saved_hidden
+            neg_pv, neg_v = self.backward(pos_h)
+            neh_ph, neg_h = self.forward(neg_v)
+        #end
         
         pos_dW = torch.matmul(pos_v.t(), pos_ph).t().div(batch_size)
         pos_da = torch.sum(pos_v, dim = 0).div(batch_size)
@@ -187,6 +193,16 @@ class RBM(torch.nn.Module):
         y_pred = classifier.predict(x_test)
         
         return accuracy_score(y_test, y_pred)
+    #end
+    
+    def save_topdown_act(self, act_hidden):
+        
+        self.act_topdown = act_hidden
+    #end
+    
+    def get_topdown_act(self):
+        
+        return self.act_topdown
     #end
         
 #end

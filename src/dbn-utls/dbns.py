@@ -208,8 +208,62 @@ class fsDBN(DBN):
         self.algo = 'fs'
     #end
     
-    def train(self, Xtrain, Xtest, Ytrain, Ytest, cparams):
+    def train(self, Xtrain, Xtest, Ytrain, Ytest, lparams):
         
-        pass
+        for rbm in self.rbm_layers:
+            rbm.dW = torch.zeros_like(rbm.W)
+            rbm.db = torch.zeros_like(rbm.b)
+            rbm.da = torch.zeros_like(rbm.a)
+        #end
+        
+        for epoch in range(lparams['EPOCHS']):
+            
+            print(f'--Epoch {epoch}')
+            self.current_epoch = epoch
+            self.epochs_loop(Xtrain, Xtest, Ytrain, Ytest, lparams)
+        #end
     #end
+    
+    def epochs_loop(self, Xtrain, Xtest, Ytrain, Ytest, lparams):
+        
+        n_train_batches = Xtrain.shape[0]
+        batch_size = Xtrain.shape[1]
+        
+        # Bottom-up loop
+        _, act = self(Xtrain)
+        
+        # Top-down loop
+        for rbm in reversed(self.rbm_layers):
+            
+            _, act = rbm.backward(act)
+            rbm.save_topdown_act(act)
+        #end
+        
+        # Training loop
+        for rbm in self.rbm_layers:
+            
+            _Xtrain = torch.zeros((n_train_batches, batch_size, rbm.Nout))
+            rbm.current_epoch = self.current_epoch
+            train_loss = 0.
+            
+            batch_indices = list(range(n_train_batches))
+            random.shuffle(batch_indices)
+            with tqdm(batch_indices, unit = 'Batch') as tlayer:
+                for idx, n in enumerate(tlayer):
+                    
+                    tlayer.set_description(f'Layer {rbm.layer_id}')
+                    _Xtrain[n,:,:] = rbm(Xtrain[n,:,:])
+                    pos_v = Xtrain[n,:,:]
+                    topdown_act = rbm.get_topdown_act()
+                    loss = rbm.CD_params_update(pos_v, lparams, hidden_saved = topdown_act)
+                    
+                    train_loss += loss
+                    tlayer.set_postfix(MSE = train_loss.div(idx + 1).item())
+                #end BATCHES
+            #end WITH
+            
+            rbm.loss_profile[self.current_epoch] = train_loss.div(n_train_batches)
+            Xtrain = _Xtrain.clone()
+        #end LAYERS
+        
 #end
