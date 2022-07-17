@@ -133,7 +133,7 @@ class RBM(torch.nn.Module):
             if readout:
                 readout_acc = self.get_readout(_Xtrain, _Xtest, Ytrain, Ytest)
                 print(f'Readout accuracy = {readout_acc*100:.2f}')
-                self.acc_profile[self.current_epoch] = readout
+                self.acc_profile[self.current_epoch] = readout_acc
             #end
         #end EPOCHS
         
