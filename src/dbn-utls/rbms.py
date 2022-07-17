@@ -58,6 +58,11 @@ class RBM(torch.nn.Module):
         delattr(self, 'db')
     #end
     
+    def delete_field(self, field):
+        
+        delattr(self, field)
+    #end
+    
     def forward(self, v):
         
         prob = torch.sigmoid(torch.matmul(v, self.W.t()).add(self.b))
