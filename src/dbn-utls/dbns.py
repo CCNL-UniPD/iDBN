@@ -92,7 +92,7 @@ class DBN(torch.nn.Module):
     
     def get_name(self):
         
-        algo_names = {'i' : 'iterative', 'g' : 'greedy'}
+        algo_names = {'i' : 'iterative', 'g' : 'greedy', 'fs' : 'fullstack'}
         algo = algo_names[self.alg_name]
         name = f'dbn_{algo}_{self.init_scheme}_{self.dataset_id}'
         return name
