@@ -160,6 +160,7 @@ class iDBN(DBN):
             self.epochs_loop(Xtrain, Xtest, Ytrain, Ytest, lparams, readout)
             
         #end EPOCHS
+        
     #end
     
     def epochs_loop(self, Xtrain, Xtest, Ytrain, Ytest, lparams, readout):
@@ -227,6 +228,10 @@ class fsDBN(DBN):
             print(f'--Epoch {epoch}')
             self.current_epoch = epoch
             self.epochs_loop(Xtrain, Xtest, Ytrain, Ytest, lparams)
+        #end
+        
+        for rbm in self.rbm_layers:
+            rbm.delete_field('act_topdown')
         #end
     #end
     
