@@ -199,3 +199,17 @@ class iDBN(DBN):
         #end LAYERS
     #end
 #end
+
+class fsDBN(DBN):
+    
+    def __init__(self, alg_name, dataset_id, init_scheme, path_model, epochs):
+        super(DBN, self).__init__(alg_name, dataset_id, init_scheme, path_model, epochs)
+        
+        self.algo = 'fs'
+    #end
+    
+    def train(self, Xtrain, Xtest, Ytrain, Ytest, cparams):
+        
+        pass
+    #end
+#end
