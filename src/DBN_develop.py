@@ -133,14 +133,17 @@ for run in range(RUNS):
     
     
     if ALG_NAME == 'g':
+        
         dbn = dbns.gDBN(ALG_NAME, DATASET_ID, INIT_SCHEME, PATH_MODEL, EPOCHS).to(DEVICE)
-        dbn.train(Xtrain, Xtest, Ytrain, Ytest, LPARAMS, readout = READOUT
-        )
+        dbn.train(Xtrain, Xtest, Ytrain, Ytest, LPARAMS, readout = READOUT)
     elif ALG_NAME == 'i':
+        
         dbn = dbns.iDBN(ALG_NAME, DATASET_ID, INIT_SCHEME, PATH_MODEL, EPOCHS).to(DEVICE)
         dbn.train(Xtrain, Xtest, Ytrain, Ytest, LPARAMS, readout = READOUT, num_discr = NUM_DISCR)
-    elif ALG_NAME == 'f':
-        dbn.train_fullstack(train_dataset, test_dataset, LPARAMS)
+    elif ALG_NAME == 'fs':
+        
+        dbn = dbns.fsDBN(ALG_NAME, DATASET_ID, INIT_SCHEME, PATH_MODEL, EPOCHS).to(DEVICE)
+        dbn.train(Xtrain, Xtest, Ytrain, Ytest, LPARAMS)
     #end
     
     for layer_id, rbm in enumerate(dbn.rbm_layers):
