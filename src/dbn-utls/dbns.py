@@ -49,17 +49,23 @@ class DBN(torch.nn.Module):
         self.path_model = path_model
     #end
     
-    def forward(self, v):
+    def forward(self, v, only_forward = False):
         
         for rbm in self.rbm_layers:
-            v, _ = rbm(v)
+            v, p_v = rbm(v)
         #end
         
-        for rbm in reversed(self.rbm_layers):
-            v, _ = rbm.backward(v)
-        #end
+        if only_forward:
+            return p_v, v
         
-        return v
+        else:
+            
+            for rbm in reversed(self.rbm_layers):
+                v, _ = rbm.backward(v)
+            #end
+            
+            return v
+        #end
     #end
     
     def test(self, Xtest, Ytest, mode = 'reproduction'):
@@ -203,7 +209,7 @@ class iDBN(DBN):
 class fsDBN(DBN):
     
     def __init__(self, alg_name, dataset_id, init_scheme, path_model, epochs):
-        super(DBN, self).__init__(alg_name, dataset_id, init_scheme, path_model, epochs)
+        super(fsDBN, self).__init__(alg_name, dataset_id, init_scheme, path_model, epochs)
         
         self.algo = 'fs'
     #end
@@ -230,13 +236,13 @@ class fsDBN(DBN):
         batch_size = Xtrain.shape[1]
         
         # Bottom-up loop
-        _, act = self(Xtrain)
+        p_act, act = self(Xtrain, only_forward = True)
         
         # Top-down loop
         for rbm in reversed(self.rbm_layers):
             
-            _, act = rbm.backward(act)
-            rbm.save_topdown_act(act)
+            rbm.save_topdown_act( (p_act, act) )
+            p_act, act = rbm.backward(act)
         #end
         
         # Training loop
@@ -252,10 +258,11 @@ class fsDBN(DBN):
                 for idx, n in enumerate(tlayer):
                     
                     tlayer.set_description(f'Layer {rbm.layer_id}')
-                    _Xtrain[n,:,:] = rbm(Xtrain[n,:,:])
+                    _Xtrain[n,:,:], _ = rbm(Xtrain[n,:,:])
                     pos_v = Xtrain[n,:,:]
-                    topdown_act = rbm.get_topdown_act()
-                    loss = rbm.CD_params_update(pos_v, lparams, hidden_saved = topdown_act)
+                    topdown_pact, topdown_act = rbm.get_topdown_act()
+                    loss = rbm.CD_params_update(pos_v, lparams, 
+                            hidden_saved = (topdown_pact[n,:,:], topdown_act[n,:,:]))
                     
                     train_loss += loss
                     tlayer.set_postfix(MSE = train_loss.div(idx + 1).item())

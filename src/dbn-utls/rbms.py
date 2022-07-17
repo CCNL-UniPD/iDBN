@@ -150,9 +150,9 @@ class RBM(torch.nn.Module):
             pos_ph, pos_h = self.forward(pos_v)
             neg_ph, neg_v, neg_pv = self.Gibbs_sampling(pos_v)
         else:
-            pos_h = self.saved_hidden
+            pos_ph, pos_h = hidden_saved
             neg_pv, neg_v = self.backward(pos_h)
-            neh_ph, neg_h = self.forward(neg_v)
+            neg_ph, neg_h = self.forward(neg_v)
         #end
         
         pos_dW = torch.matmul(pos_v.t(), pos_ph).t().div(batch_size)
