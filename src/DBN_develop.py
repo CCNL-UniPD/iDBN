@@ -160,15 +160,15 @@ for run in range(RUNS):
 
 # -----------------------------------------------------
 # Serialize results
-with open(os.path.join(PATH_MODEL, 'loss_metrics.pkl'), 'wb') as f:
+with open(os.path.join(PATH_MODEL, f'loss_metrics_{INIT_SCHEME}.pkl'), 'wb') as f:
     pickle.dump(loss_metrics, f)
 f.close()
 
-with open(os.path.join(PATH_MODEL, 'acc_metrics.pkl'), 'wb') as f:
+with open(os.path.join(PATH_MODEL, f'acc_metrics_{INIT_SCHEME}.pkl'), 'wb') as f:
     pickle.dump(acc_metrics, f)
 f.close()
 
-with open(os.path.join(PATH_MODEL, 'test_errors.pkl'), 'wb') as f:
+with open(os.path.join(PATH_MODEL, f'test_errors_{INIT_SCHEME}.pkl'), 'wb') as f:
     pickle.dump({'repr' : test_repr, 'reco' : test_reco, 'deno' : test_deno}, f)
 f.close()
 
