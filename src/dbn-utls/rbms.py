@@ -34,7 +34,7 @@ class RBM(torch.nn.Module):
             if init_scheme == 'normal':
                 scale_factor = 0.01
             elif init_scheme == 'glorot':
-                scale_factor = 1
+                scale_factor = 0.1
             #end
         if dataset_id == 'SZ': 
             scale_factor = 0.1
