@@ -156,7 +156,9 @@ for run in range(RUNS):
         psycurves.append(dbn.psycurves)     # list of dicts with ratios and percs
     #end
     
-    test_repr[run] = dbn.test(Xtest, Ytest)[0]
+    test_repr[run] = dbn.test(Xtest, Ytest, mode = 'reproduction')
+    test_reco[run] = dbn.test(Xtest, Ytest, mode = 'reconstruction')
+    test_deno[run] = dbn.test(Xtest, Ytest, mode = 'denoise')
     dbn.save(run = run)
 #end
 # -----------------------------------------------------

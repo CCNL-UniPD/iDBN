@@ -1,9 +1,16 @@
 
 import os
+import numpy as np
 import torch
 import rbms
 import random
 from tqdm import tqdm
+
+if torch.cuda.is_available():
+    DEVICE = torch.device('cuda')
+else:
+    DEVICE = torch.device('cpu')
+#end
 
 
 class NonLinear(torch.nn.Linear):
@@ -19,7 +26,6 @@ class NonLinear(torch.nn.Linear):
         return self.linear(x).add(self.bias)
     #end
 #end
-
 
 class DBN(torch.nn.Module):
     
@@ -68,26 +74,40 @@ class DBN(torch.nn.Module):
         #end
     #end
     
-    def test(self, Xtest, Ytest, mode = 'reproduction'):
+    def test(self, Xtest, Ytest, mode = 'reproduction', return_only_error = True):
         
         eval_fn = torch.nn.MSELoss(reduction = 'mean')
+        input_data = Xtest.clone()
         
-        if mode == 'reproduction':
-            data = Xtest
-        if mode == 'reconstruction':
-            # corrupt and reconstruct
-            # data = ...
-            pass
-        if mode == 'denoise':
-            # data = ...
-            # add torch.normal(mean, std, size).to(DEVICE)
-            pass
+        for n in range(Xtest.shape[0]):
+            
+            if mode == 'reproduction':
+                
+                pass
+            elif mode == 'reconstruction':
+                
+                side_dim = np.int32(np.sqrt(Xtest[0].shape[1]))
+                row = 5
+                rows_delete = 5
+                idx_init = (row + 1) * side_dim
+                idx_end  = (row + rows_delete) * side_dim + side_dim
+                input_data[n, :, idx_init : idx_end] = 0;
+            elif mode == 'denoise':
+                
+                input_data[n,:,:] += torch.normal(0, 0.5, input_data[n,:,:].shape).to(DEVICE)
+            else:
+                raise NotImplementedError('Method not implemented')
+            #end
         #end
         
-        out_data = self(data)
-        error = eval_fn(data, out_data)
+        output_data = self(input_data)
+        error = eval_fn(Xtest, output_data)
         
-        return error, out_data
+        if return_only_error:
+            return error
+        else:
+            return error, output_data, input_data
+        #end
     #end
     
     def get_name(self):
@@ -277,5 +297,5 @@ class fsDBN(DBN):
             rbm.loss_profile[self.current_epoch] = train_loss.div(n_train_batches)
             Xtrain = _Xtrain.clone()
         #end LAYERS
-        
+    #end    
 #end
